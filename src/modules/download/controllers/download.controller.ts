@@ -12,5 +12,7 @@ export class DownloadController {
   @Post('download')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  async download(@Body() createMediaFromUrlDto: CreateMediaFromUrlDto) {}
+  async download(@Body() createMediaFromUrlDto: CreateMediaFromUrlDto) {
+    return createMediaFromUrlDto;
+  }
 }
