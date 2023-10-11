@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { DownloadModule } from 'modules/download';
 import { join } from 'path';
 
 @Module({
   imports: [
+    DownloadModule,
     ConfigModule.forRoot({ isGlobal: true }),
     ServeStaticModule.forRootAsync({
       useFactory: () => [
@@ -15,7 +17,6 @@ import { join } from 'path';
         },
       ],
     }),
-   
   ],
 })
 export class AppModule {}
