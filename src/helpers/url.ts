@@ -1,5 +1,8 @@
 import * as puppeteer from 'puppeteer';
 import * as ytdl from 'ytdl-core';
+import * as path from 'path';
+import * as urlPath from 'url';
+import { SocialSource } from 'shared/enum';
 
 export const IsUrl = (url: string) => {
   const regex =
@@ -10,7 +13,7 @@ export const IsUrl = (url: string) => {
 
 export const IsFacebookUrl = (url: string) => {
   const regex =
-    /^https?:\/\/www\.facebook\.com.*\/(video(s)?|watch|story)(\.php?|\/).+$/;
+    /(?:https?:\/\/)?(?:www\.)?(mbasic.facebook|m\.facebook|facebook|fb)\.(com|me)\/(?:(?:\w\.)*#!\/)?(?:pages\/)?(?:[\w\-\.]*\/)*([\w\-\.]*)/;
 
   return regex.test(url);
 };
@@ -63,4 +66,56 @@ export const YoutubeGetInfoVideo = async (url: string) => {
   } catch (error) {
     console.error('An error occurred:', error);
   }
+};
+
+export const detectUrl = (url): SocialSource => {
+  if (IsFacebookUrl(url)) return SocialSource.FACEBOOK;
+  else if (IsYoutubeUrl(url)) return SocialSource.YOUTUBE;
+  else if (IsMp4Url(url)) return SocialSource.MP4;
+  else return SocialSource.OTHER;
+};
+
+export const GetInfoFromUrl = async (url: string) => {
+  const type = detectUrl(url);
+  let title: string;
+
+  switch (type) {
+    case SocialSource.FACEBOOK:
+      try {
+        const data = await FacebookGetInfoVideo(url);
+        title = data.title;
+      } catch (error) {
+        title = 'Upload from facebook';
+      }
+      break;
+
+    case SocialSource.YOUTUBE:
+      try {
+        const data = await YoutubeGetInfoVideo(url);
+        title = data.title;
+      } catch {
+        title = 'Upload from youtube';
+      }
+      break;
+    case SocialSource.MP4:
+      try {
+        const parsed = urlPath.parse(url);
+        title = path
+          .basename(parsed.pathname)
+          .split('.')
+          .slice(0, -1)
+          .join('.');
+      } catch {
+        title = 'Upload from mp4';
+      }
+      break;
+    default:
+      let parsed = urlPath.parse(url);
+      title = path.basename(parsed.pathname).split('.').slice(0, -1).join('.');
+  }
+
+  return {
+    title,
+    type,
+  };
 };

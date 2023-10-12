@@ -1,13 +1,3 @@
-import {
-  FacebookGetInfoVideo,
-  IsMp4Url,
-  IsUrl,
-  IsYoutubeUrl,
-  YoutubeGetInfoVideo,
-  IsFacebookUrl,
-} from './url';
-import * as path from 'path';
-import * as urlPath from 'url';
 import { v4 as uuid } from 'uuid';
 import { existsSync, mkdirSync, createWriteStream } from 'fs';
 import * as cp from 'child_process';
@@ -15,82 +5,16 @@ import * as readline from 'readline';
 import * as ytdl from 'ytdl-core';
 import axios from 'axios';
 import * as puppeteer from 'puppeteer';
-import { SocialSource } from 'shared/enum';
 
-export const genPathMp4 = () => {
-  // const currentDate = dateFormat(new Date(), '%Y/%m/%d', true);
-  const uploadPath = process.env.FILE_STORAGE_PATH + '/';
-  //  + currentDate;
+export const genPathMp4 = (organizationId: string) => {
+  const uploadPath = process.env.FILE_STORAGE_PATH + '/' + organizationId;
   if (!existsSync(uploadPath)) {
     mkdirSync(uploadPath, { recursive: true });
   }
   return uploadPath + '/' + uuid() + '.mp4';
 };
 
-export const detectUrl = (url): SocialSource => {
-  if (IsUrl(url)) {
-    let type;
-    if (IsFacebookUrl(url)) {
-      type = SocialSource.FACEBOOK;
-    } else if (IsYoutubeUrl(url)) {
-      type = SocialSource.YOUTUBE;
-    } else if (IsMp4Url(url)) {
-      type = SocialSource.MP4;
-    } else {
-      type = SocialSource.OTHER;
-    }
-    return type;
-  } else throw new Error('Invalid URL');
-};
-
-export const GetInfoFromUrl = async (url: string) => {
-  const type = detectUrl(url);
-  let title: string;
-
-  switch (type) {
-    case SocialSource.FACEBOOK:
-      try {
-        // const data = await FacebookGetInfoVideo(url);
-        // title = data.title;
-        title = 'sdsds';
-      } catch (error) {
-        title = 'Upload from facebook';
-      }
-      break;
-
-    case SocialSource.YOUTUBE:
-      try {
-        const data = await YoutubeGetInfoVideo(url);
-        title = data.title;
-      } catch {
-        title = 'Upload from youtube';
-      }
-      break;
-    case SocialSource.MP4:
-      try {
-        const parsed = urlPath.parse(url);
-        title = path
-          .basename(parsed.pathname)
-          .split('.')
-          .slice(0, -1)
-          .join('.');
-      } catch {
-        title = 'Upload from mp4';
-      }
-      break;
-    default:
-      let parsed = urlPath.parse(url);
-      title = path.basename(parsed.pathname).split('.').slice(0, -1).join('.');
-  }
-
-  return {
-    title,
-    type,
-  };
-};
-
-export const downloadFromYoutube = (url: string) => {
-  const path = genPathMp4();
+export const downloadFromYoutube = async (url: string, path: string) => {
   const ffmpeg = require('ffmpeg-static');
   const tracker = {
     start: Date.now(),
@@ -239,33 +163,34 @@ export const downloadFromYoutube = (url: string) => {
   });
 };
 
-export const downloadFromUrl = async (url: string) => {
-  const path = genPathMp4();
+export const downloadFromUrl = (url: string, path: string): Promise<void> => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const response = await axios({
+        url,
+        method: 'GET',
+        responseType: 'stream',
+      });
 
-  axios({
-    url,
-    method: 'GET',
-    responseType: 'stream',
-  })
-    .then((response) => {
       const writer = createWriteStream(path);
 
       response.data.pipe(writer);
 
-      return new Promise((resolve, reject) => {
-        writer.on('finish', resolve);
-        writer.on('error', reject);
+      writer.on('finish', () => {
+        console.log('Video downloaded successfully!');
+        resolve();
       });
-    })
-    .then(() => {
-      console.log('Video downloaded successfully!');
-    })
-    .catch((error) => {
-      throw new Error('URL invalid!');
-    });
+
+      writer.on('error', (error) => {
+        reject(new Error('Failed to save the video file'));
+      });
+    } catch (error) {
+      reject(new Error('URL invalid!'));
+    }
+  });
 };
 
-export const downloadFromFacebook = async (url) => {
+export const getVideoUrlFromFacebook = async (url, path: string) => {
   try {
     const browser = await puppeteer.launch({
       headless: 'new',
@@ -273,13 +198,15 @@ export const downloadFromFacebook = async (url) => {
     const page = await browser.newPage();
     // Truy cập trang Facebook
     await page.goto(url);
-    await page.waitForSelector('video', { timeout: 5000 });
+    await page.waitForSelector('video', { timeout: 1000 });
     const videoUrl = await page.evaluate(() => {
       const videoElement = document.querySelector('video');
       return videoElement ? videoElement.src : null;
     });
+
     await browser.close();
-    if (videoUrl) downloadFromUrl(videoUrl);
+
+    if (videoUrl) return { videoUrl };
     else throw new Error('Video URL not found.');
   } catch (error) {
     throw new Error('URL invalid!');
