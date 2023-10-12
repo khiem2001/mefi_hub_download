@@ -7,7 +7,7 @@ import { CreateMediaFromUrlDto } from '../dtos';
 import { JwtAuthGuard } from 'modules/auth/guards';
 @Controller()
 export class DownloadController {
-  constructor(private readonly _downloadService: DownloadService) {}
+  constructor(private readonly _downloadService: DownloadService) { }
 
   @Post('download')
   @UseGuards(JwtAuthGuard)
