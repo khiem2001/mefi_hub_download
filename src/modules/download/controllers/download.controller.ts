@@ -1,7 +1,7 @@
 import { MessagePattern } from '@nestjs/microservices';
 import { DownloadService } from '../services';
-
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
+import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { CreateMediaFromUrlDto } from '../dtos';
 import { JwtAuthGuard } from 'modules/auth/guards';
@@ -12,7 +12,23 @@ export class DownloadController {
   @Post('download')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  async download(@Body() createMediaFromUrlDto: CreateMediaFromUrlDto) {
-    return createMediaFromUrlDto;
+  async createMediaFromUrl(
+    @Req() req: any,
+    @Body() body: CreateMediaFromUrlDto,
+  ) {
+    const { _id: userId } = req.user;
+    const { urls, organizationId, templateId } = body;
+    await Promise.all(
+      urls.map(async (url) => {
+        await this._downloadService.downloadVideo({
+          url,
+          organizationId,
+          templateId,
+          userId,
+        });
+      }),
+    );
+
+    return { success: true };
   }
 }
