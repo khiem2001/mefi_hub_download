@@ -31,7 +31,6 @@ export class FolderService {
     async downloadFileFromFoler(input: any, userId: string) {
         const { templateId, fileOriginals, organizationId } = input;
         const folder = this.config.get<string>('FOLDER');
-
         for (const file of fileOriginals) {
             const { mimeType, fileSize, url } = file;
             const queueRequest = { templateId, mimeType, organizationId, fileSize }
@@ -47,7 +46,7 @@ export class FolderService {
         return { success: true }
     }
 
-    async handlerTranscodePackage(path: string, input: any, fileName: string) {
+    async handlerTranscodePackage(path: string, input: any, fileName: string, source: string) {
         const { templateId, mimeType, organizationId, fileSize } = input
         // TODO: Create media
         const media = await this._APIService
@@ -82,6 +81,7 @@ export class FolderService {
             await this._APIService
                 .send('UPDATE_MEDIA_BY_ID', {
                     _id: media._id,
+                    source,
                     status: 'TRANSCODING',
                 })
                 .pipe(timeout(15000))

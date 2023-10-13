@@ -19,7 +19,9 @@ export class WatchFolderProcessor {
             const path = job.returnvalue
             const input = job.data.queueRequest
             const fileName = job.data.fileName
-            await this._service.handlerTranscodePackage(path, input, fileName)
+            await this._service.handlerTranscodePackage(path, input, fileName, job.data.url)
+
+            return job.data.url
         } catch (error) {
             console.log(`Hanlder transcode or package video fail ! : ${error}`)
         }

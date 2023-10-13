@@ -37,4 +37,20 @@ const TRANSPORT_SERVICE = {
   },
 };
 
-export { TRANSPORT_SERVICE };
+const TRANSPORT_METHOD = {
+  nats: {
+    transport: Transport.NATS,
+    options: {
+      url: process.env.NATS_URL || 'nats://localhost:4222',
+    },
+  },
+  redis: {
+    transport: Transport.REDIS,
+    options: {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: process.env.REDIS_PORT || 6379,
+    },
+  },
+};
+
+export { TRANSPORT_SERVICE, TRANSPORT_METHOD };
