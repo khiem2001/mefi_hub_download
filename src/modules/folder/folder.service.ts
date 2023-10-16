@@ -11,6 +11,7 @@ import * as fs from 'fs'
 import { Queue } from 'bull';
 import { InjectQueue } from '@nestjs/bull';
 import { ValidatorService } from 'utils/validator.service';
+import { ObjectId } from 'mongodb';
 
 
 
@@ -48,6 +49,9 @@ export class FolderService {
 
     async handlerTranscodePackage(path: string, input: any, fileName: string, source: string) {
         const { templateId, mimeType, organizationId, fileSize } = input
+
+        console.log('source', source)
+
         // TODO: Create media
         const media = await this._APIService
             .send('CREATE_MEDIA', {
@@ -55,9 +59,9 @@ export class FolderService {
                 mimeType,
                 name: getFileNameWithoutExtension(fileName),
                 fileName: extractFileNameFromPath(path),
-                organizationId,
+                organizationId: new ObjectId(organizationId),
                 fileSize,
-                userId: "64ffe24c97c136fa654a05cd",
+                userId: new ObjectId("64ffe24c97c136fa654a05cd"),
                 description: fileName,
                 status: 'UPLOADED'
             })
@@ -74,6 +78,9 @@ export class FolderService {
                 Logger.debug(`Create media with error : ${error.message}`);
                 return;
             });
+
+        console.log('media', media)
+
 
         //handler transcode with package
         if (this._validatorService.canTranscode(mimeType)) {
@@ -212,17 +219,18 @@ export class FolderService {
                     return;
                 });
 
+
             // TODO: Call to service transcode
-            await this._transcodeService
-                .send('TRANSCODE_MEDIA_FILE', {
-                    media: mediaTranscode,
-                })
-                .toPromise()
-                .catch((error) => {
-                    Logger.debug(
-                        `Transcode media profile with error : ${error.message}`,
-                    );
-                });
+            // await this._transcodeService
+            //     .send('TRANSCODE_MEDIA_FILE', {
+            //         media: mediaTranscode,
+            //     })
+            //     .toPromise()
+            //     .catch((error) => {
+            //         Logger.debug(
+            //             `Transcode media profile with error : ${error.message}`,
+            //         );
+            //     });
         }
     }
 
