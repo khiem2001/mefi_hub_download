@@ -11,6 +11,7 @@ import { Inject, Logger } from '@nestjs/common';
 import {
   downloadFromUrl,
   downloadFromYoutube,
+  genPathMp4,
   getVideoUrlFromFacebook,
 } from 'helpers/download';
 import { SocialSource } from 'shared/enum';
@@ -18,6 +19,8 @@ import { ClientProxy } from '@nestjs/microservices';
 import { MediaFileStatus } from 'shared/enum/file';
 import { timeout } from 'rxjs';
 import { DownloadService } from '../services';
+import { GetInfoFromUrl } from 'helpers/url';
+import { getFileNameWithoutExtension } from 'helpers/file';
 
 @Processor('download_video')
 export class DownloadProcessor {
@@ -34,9 +37,22 @@ export class DownloadProcessor {
   })
   @OnQueueActive()
   async onActive(job: Job) {
-    console.log(`Download video ${job.data.type}...`);
+    console.log(`Download video ${job.data.url}...`);
 
-    const { type, url, path, contentId } = job.data;
+    const { url, organizationId, templateId, userId } = job.data;
+    const { title, type } = await GetInfoFromUrl(url);
+    const path = genPathMp4(organizationId);
+    const uuid = getFileNameWithoutExtension(path);
+
+    //  TODO: Create media file
+    await this._downloadService.createMedia({
+      path,
+      uuid,
+      title,
+      organizationId,
+      userId,
+    });
+
     try {
       switch (type) {
         case SocialSource.YOUTUBE:
@@ -52,42 +68,31 @@ export class DownloadProcessor {
         default:
           throw Error('Invalid Video');
       }
+
+      //  TODO: Process after download
+      if (existsSync(path)) {
+        // await this._downloadService.processAfterDownload({
+        //   path,
+        //   contentId: uuid,
+        //   templateId,
+        // });
+      }
     } catch (err) {
       //  TODO: Update media to "ERROR"
-      await this._APIService
-        .send('UPDATE_MEDIA', {
-          contentId,
-          status: MediaFileStatus.ERROR,
-        })
-        .pipe(timeout(15000))
-        .toPromise()
-        .then(async (result) => {
-          const { error, message, data } = result;
-          if (error) {
-            Logger.debug(`Update media status [ERROR] with error : ${message}`);
-            return;
-          }
-          return data;
-        })
-        .catch((error) => {
-          Logger.debug(`Update media with error : ${error.message}`);
-          return;
-        });
+      await this._downloadService.updateMedia({
+        contentId: uuid,
+        status: MediaFileStatus.ERROR,
+      });
     }
   }
 
   @OnQueueCompleted()
   async onCompleted(job: Job) {
-    const { type, url, path, contentId, templateId } = job.data;
-
-    console.log(`=> Complete download ${job.data.type}`);
-    if (existsSync(path)) {
-      await this._downloadService.processAfterDownload(job.data);
-    }
+    console.log(`=> Complete download ${job.data.url}`);
   }
 
   @OnQueueFailed()
   async onFailed(job: Job, err: any) {
-    console.log(`=> Fail download ${job.data.type}`);
+    console.log(`=> Fail download ${job.data.url}`);
   }
 }

@@ -1,14 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { CreateMediaFromUrlDto } from '../dtos';
-import { GetInfoFromUrl } from 'helpers/url';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { ClientProxy } from '@nestjs/microservices';
-import { genPathMp4 } from 'helpers/download';
-import {
-  extractFileNameFromPath,
-  getFileNameWithoutExtension,
-} from 'helpers/file';
+import { extractFileNameFromPath } from 'helpers/file';
 import { timeout } from 'rxjs';
 import { statSync } from 'fs';
 import { MediaFileStatus } from 'shared/enum/file';
@@ -23,13 +17,11 @@ export class DownloadService {
   ) {}
 
   async downloadVideo(data: any) {
-    const { url, organizationId, templateId, userId } = data;
+    await this.download_video.add('downloadQueue', data);
+  }
 
-    const { title, type } = await GetInfoFromUrl(url);
-    const path = genPathMp4(organizationId);
-    const uuid = getFileNameWithoutExtension(path);
-
-    // TODO: Create media
+  async createMedia(data: any) {
+    const { path, uuid, title, organizationId, userId } = data;
     await this._APIService
       .send('CREATE_MEDIA', {
         mimeType: 'video/mp4',
@@ -54,33 +46,18 @@ export class DownloadService {
         Logger.debug(`Create media with error : ${error.message}`);
         return;
       });
-    return await this.download_video.add('downloadQueue', {
-      url,
-      type,
-      path,
-      contentId: uuid,
-      templateId,
-    });
   }
 
-  async processAfterDownload(data: any) {
-    const { path, contentId, templateId } = data;
-    const fileSize = statSync(path).size;
-
-    // TODO: Update media to "UPLOADED"
-    const media = await this._APIService
-      .send('UPDATE_MEDIA', {
-        contentId,
-        fileSize,
-        status: MediaFileStatus.UPLOADED,
-      })
+  async updateMedia(data: any) {
+    return await this._APIService
+      .send('UPDATE_MEDIA', data)
       .pipe(timeout(15000))
       .toPromise()
       .then(async (result) => {
         const { error, message, data } = result;
         if (error) {
           Logger.debug(
-            `Update media status [TRANSCODING] with error : ${message}`,
+            `Update media status [${data?.status}] with error : ${message}`,
           );
           return;
         }
@@ -90,6 +67,19 @@ export class DownloadService {
         Logger.debug(`Update media with error : ${error.message}`);
         return;
       });
+  }
+
+  async processAfterDownload(data: any) {
+    const { path, contentId, templateId } = data;
+    const fileSize = statSync(path).size;
+
+    // TODO: Update media to "UPLOADED"
+
+    const media = await this.updateMedia({
+      contentId,
+      fileSize,
+      status: MediaFileStatus.UPLOADED,
+    });
 
     // TODO: get template transcode
     const template = await this._APIService

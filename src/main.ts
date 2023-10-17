@@ -6,6 +6,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { AppModule } from './modules/app';
 import { setupSwagger } from 'shared/swagger';
+import { setupBullBoard } from './utils';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -24,8 +25,9 @@ async function bootstrap() {
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
-
+  await app.startAllMicroservices();
   setupSwagger(app);
+  setupBullBoard(app);
 
   const server = await app.listen(port, () => {
     Logger.log(
