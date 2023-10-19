@@ -71,11 +71,11 @@ export class DownloadProcessor {
 
       //  TODO: Process after download
       if (existsSync(path)) {
-        // await this._downloadService.processAfterDownload({
-        //   path,
-        //   contentId: uuid,
-        //   templateId,
-        // });
+        this._downloadService.processAfterDownload({
+          path,
+          contentId: uuid,
+          templateId,
+        });
       }
     } catch (err) {
       //  TODO: Update media to "ERROR"
