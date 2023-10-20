@@ -17,7 +17,6 @@ import {
 import { SocialSource } from 'shared/enum';
 import { ClientProxy } from '@nestjs/microservices';
 import { MediaFileStatus } from 'shared/enum/file';
-import { timeout } from 'rxjs';
 import { DownloadService } from '../services';
 import { GetInfoFromUrl } from 'helpers/url';
 import { getFileNameWithoutExtension } from 'helpers/file';
