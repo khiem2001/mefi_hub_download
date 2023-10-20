@@ -5,6 +5,7 @@ import { AuthModule } from 'modules/auth';
 import { DownloadModule } from 'modules/download';
 import { join } from 'path';
 import { CommandModule } from 'nestjs-command';
+import { WatchFolderModule } from 'modules/watch-folder';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { CommandModule } from 'nestjs-command';
         },
       ],
     }),
+    WatchFolderModule,
     CommandModule,
   ],
 })
