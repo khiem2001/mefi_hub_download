@@ -10,7 +10,7 @@ import { existsSync } from 'fs';
 import { Inject, Logger } from '@nestjs/common';
 import { SocialSource } from 'shared/enum';
 import { ClientProxy } from '@nestjs/microservices';
-import { MediaFileStatus } from 'shared/enum/file';
+import { MediaStatus } from 'shared/enum/file';
 import { FacebookService, UrlService, YoutubeService } from '../services';
 import { GetInfoFromUrl, genPathMp4 } from 'helpers/url';
 import { timeout } from 'rxjs';
@@ -85,7 +85,7 @@ export class DownloadProcessor {
     if (success) {
       const { filenameWithoutExtension, filename, mimeType, fileSizeInBytes } =
         await this._ffmpegService.getFileInfo(`${process.cwd()}/${data?.path}`);
-
+      console.log(filenameWithoutExtension);
       //  TODO: Create media file
       const media = await this._APIService
         .send('CREATE_MEDIA', {
@@ -98,7 +98,7 @@ export class DownloadProcessor {
           fileSize: fileSizeInBytes,
           organizationId,
           userId,
-          status: MediaFileStatus.UPLOADED,
+          status: MediaStatus.UPLOADED,
         })
         .pipe(timeout(15000))
         .toPromise()
@@ -119,7 +119,7 @@ export class DownloadProcessor {
         await this._APIService
           .send('UPDATE_MEDIA', {
             contentId: media.contentId,
-            status: MediaFileStatus.TRANSCODING,
+            status: MediaStatus.TRANSCODING,
           })
           .pipe(timeout(15000))
           .toPromise()

@@ -8,7 +8,7 @@ import { Job, Queue } from 'bull';
 import { WatchFolderService } from 'modules/watch-folder/services';
 import { timeout } from 'rxjs';
 import { Inject, Logger } from '@nestjs/common';
-import { MediaFileStatus, MediaStatus } from 'shared/enum/file';
+import { MediaStatus } from 'shared/enum/file';
 import { ValidatorService } from 'utils/validator.service';
 import { FfmpegService } from 'utils/ffmpeg.service';
 import { ClientProxy } from '@nestjs/microservices';
@@ -82,7 +82,7 @@ export class SyncFileProcessor {
         await this._APIService
           .send('UPDATE_MEDIA', {
             contentId: media.contentId,
-            status: MediaFileStatus.TRANSCODING,
+            status: MediaStatus.TRANSCODING,
           })
           .pipe(timeout(15000))
           .toPromise()
