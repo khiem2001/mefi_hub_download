@@ -4,14 +4,15 @@ import { FTP_CONFIG } from 'configs/ftp.config';
 import * as path from 'path';
 import * as fs from 'fs';
 import { existsSync, mkdirSync } from 'fs';
+import { ConfigService } from '@nestjs/config';
+import { v4 as uuid } from 'uuid';
 
 @Injectable()
 export class WatchFolderService {
   private readonly _watchFolder: string;
 
-  constructor() {
-    this._watchFolder =
-      '/home/projects/metahall/api/storage/original/2023/10/06';
+  constructor(private readonly _configService: ConfigService) {
+    this._watchFolder = this._configService.get('WATCH_FOLDER_PATH');
   }
 
   async listDirectory(filePath: string) {
@@ -54,9 +55,14 @@ export class WatchFolderService {
       mkdirSync(storageDir, { recursive: true });
     }
 
-    const fileName = this.getFileNameFromPath(
-      `${this._watchFolder}/${srcPath}`,
-    );
+    // const fileName = this.getFileNameFromPath(
+    //   `${this._watchFolder}/${srcPath}`,
+    // );
+
+    const fileExtension = srcPath.split('.').pop();
+    const prefix: string = uuid();
+
+    const fileName = `${prefix}.${fileExtension}`;
 
     return await sftp
       .get(
