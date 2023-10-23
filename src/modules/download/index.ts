@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, ClientsModuleOptions } from '@nestjs/microservices';
 import { DownloadController } from './controllers';
-import { DownloadService } from './services';
+import { FacebookService, UrlService, YoutubeService } from './services';
 import { ValidatorService } from 'utils/validator.service';
 import { TRANSPORT_SERVICE } from 'configs/transport.config';
 import { DownloadProcessor } from './processor';
 import { BullModule } from '@nestjs/bull';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CreateSymlinkStorageCommand } from './commands';
+import { FfmpegService } from 'utils/ffmpeg.service';
 
 @Module({
   imports: [
@@ -29,10 +30,13 @@ import { CreateSymlinkStorageCommand } from './commands';
   ],
   controllers: [DownloadController],
   providers: [
-    DownloadService,
-    ValidatorService,
+    YoutubeService,
+    UrlService,
+    FacebookService,
     DownloadProcessor,
     CreateSymlinkStorageCommand,
+    FfmpegService,
+    ValidatorService,
   ],
 })
 export class DownloadModule {}
