@@ -70,7 +70,7 @@ export class DownloadProcessor {
 
       //  TODO: Process after download
       if (existsSync(path)) {
-        this._downloadService.processAfterDownload({
+        await this._downloadService.processAfterDownload({
           path,
           contentId: uuid,
           templateId,
