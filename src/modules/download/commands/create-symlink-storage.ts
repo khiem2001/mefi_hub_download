@@ -10,8 +10,8 @@ export class CreateSymlinkStorageCommand {
   })
   async createSymlinkStorage() {
     return fs.symlinkSync(
-      '/home/projects/mefi-hub-download/storage',
       '/home/projects/mefi-hub-upload/storage',
+      '/home/projects/mefi-hub-download/storage',
       'junction',
     );
   }
