@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
-import * as path from 'path';
+import * as mime from 'mime';
 
 interface FileInfo {
   filename: string;
@@ -39,15 +39,23 @@ export class FfmpegService {
   }
 
   private getMimeType(filePath: string): string {
-    const extname = path.extname(filePath).toLowerCase();
+    // const extname = path.extname(filePath).toLowerCase();
     // Map file extensions to MIME types as needed
-    switch (extname) {
-      case '.mp4':
-        return 'video/mp4';
-      case '.jpg':
-        return 'image/jpeg';
-      default:
-        return 'application/octet-stream'; // Default MIME type
+    // switch (extname) {
+    //   case '.mp4':
+    //     return 'video/mp4';
+    //   case '.jpg':
+    //     return 'image/jpeg';
+    //   default:
+    //     return 'application/octet-stream'; // Default MIME type
+    // }
+    const mimeType = mime.getType(filePath);
+
+    if (mimeType) {
+      return mimeType;
+    } else {
+      // Handle the case where the MIME type couldn't be determined
+      return 'application/octet-stream'; // Default to a generic binary type
     }
   }
 
