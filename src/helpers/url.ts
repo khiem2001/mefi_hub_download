@@ -3,6 +3,8 @@ import * as ytdl from 'ytdl-core';
 import * as path from 'path';
 import * as urlPath from 'url';
 import { SocialSource } from 'shared/enum';
+import { v4 as uuid } from 'uuid';
+import { existsSync, mkdirSync } from 'fs';
 
 export const IsUrl = (url: string) => {
   const regex =
@@ -118,4 +120,12 @@ export const GetInfoFromUrl = async (url: string) => {
     title,
     type,
   };
+};
+
+export const genPathMp4 = (organizationId: string) => {
+  const uploadPath = process.env.FILE_STORAGE_PATH + '/' + organizationId;
+  if (!existsSync(uploadPath)) {
+    mkdirSync(uploadPath, { recursive: true });
+  }
+  return uploadPath + '/' + uuid() + '.mp4';
 };
