@@ -112,7 +112,7 @@ export const GetInfoFromUrl = async (url: string) => {
       }
       break;
     default:
-      let parsed = urlPath.parse(url);
+      const parsed = urlPath.parse(url);
       title = path.basename(parsed.pathname).split('.').slice(0, -1).join('.');
   }
 

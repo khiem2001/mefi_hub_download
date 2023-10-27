@@ -3,8 +3,6 @@ import * as puppeteer from 'puppeteer';
 
 @Injectable()
 export class FacebookService {
-  constructor() {}
-
   async getVideoUrl(url: string) {
     try {
       const browser = await puppeteer.launch({

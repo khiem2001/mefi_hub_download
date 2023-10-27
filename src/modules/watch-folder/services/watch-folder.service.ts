@@ -55,34 +55,23 @@ export class WatchFolderService {
       mkdirSync(storageDir, { recursive: true });
     }
 
-    // const fileName = this.getFileNameFromPath(
-    //   `${this._watchFolder}/${srcPath}`,
-    // );
-
     const fileExtension = srcPath.split('.').pop();
     const prefix: string = uuid();
 
     const fileName = `${prefix}.${fileExtension}`;
 
-    return await sftp
-      .get(
-        `${this._watchFolder}/${srcPath}`,
-        fs.createWriteStream(`${storageDir}/${fileName}`),
-      )
-      .then(() => {
-        return {
-          success: true,
-          data: `${organizationId}/${fileName}`,
-          message: 'Sync file successfully !',
-        };
-      })
-      .catch((err) => {
-        return {
-          success: false,
-          data: null,
-          message: err.message,
-        };
-      });
+    return new Promise(async (resolve, reject) => {
+      try {
+        await sftp.get(
+          `${this._watchFolder}/${srcPath}`,
+          fs.createWriteStream(`${storageDir}/${fileName}`),
+        );
+        resolve(`${organizationId}/${fileName}`);
+      } catch (error) {
+        await sftp.end();
+        reject(error.message);
+      }
+    });
   }
 
   private async recursiveList(sftp: SftpClient, currentPath: string) {
