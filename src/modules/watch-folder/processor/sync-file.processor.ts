@@ -5,14 +5,15 @@ import {
   Process,
   Processor,
 } from '@nestjs/bull';
+import { Inject, Logger } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
 import { Job, Queue } from 'bull';
+import { writeFileName } from 'helpers/file';
 import { WatchFolderService } from 'modules/watch-folder/services';
 import { timeout } from 'rxjs';
-import { Inject, Logger } from '@nestjs/common';
 import { MediaStatus } from 'shared/enum/file';
-import { ValidatorService } from 'utils/validator.service';
 import { FfmpegService } from 'utils/ffmpeg.service';
-import { ClientProxy } from '@nestjs/microservices';
+import { ValidatorService } from 'utils/validator.service';
 import { v4 as uuid } from 'uuid';
 
 @Processor('sync')
@@ -25,7 +26,7 @@ export class SyncFileProcessor {
     @Inject('API_SERVICE') private readonly _APIService: ClientProxy,
     @Inject('TRANSCODE_SERVICE')
     private readonly _transcodeService: ClientProxy,
-  ) {}
+  ) { }
 
   @Process({
     name: 'syncToStorage',
@@ -42,7 +43,7 @@ export class SyncFileProcessor {
 
   @OnQueueCompleted()
   async onSyncComplete(job: Job, result: any) {
-    const { templateId, organizationId, userId } = job.data;
+    const { templateId, organizationId, userId, path } = job.data;
 
     const { filenameWithoutExtension, filename, mimeType, fileSizeInBytes } =
       await this._ffmpegService.getFileInfo(
@@ -213,6 +214,9 @@ export class SyncFileProcessor {
         .catch((error) => {
           Logger.debug(`Transcode media profile with error : ${error.message}`);
         });
+
+      //write file name original
+      return writeFileName(path)
     }
   }
 }
