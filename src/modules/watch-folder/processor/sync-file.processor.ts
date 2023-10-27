@@ -1,5 +1,6 @@
 import {
   InjectQueue,
+  OnQueueActive,
   OnQueueCompleted,
   Process,
   Processor,
@@ -30,6 +31,7 @@ export class SyncFileProcessor {
     name: 'syncToStorage',
     concurrency: 5,
   })
+  @OnQueueActive()
   async syncToStorage(job: Job) {
     const { organizationId, path } = job.data;
     return await this._watchService.syncFileToStorage({
@@ -39,130 +41,111 @@ export class SyncFileProcessor {
   }
 
   @OnQueueCompleted()
-  async onSyncComplete(job: Job, result: { success: any; data: any }) {
+  async onSyncComplete(job: Job, result: any) {
     const { templateId, organizationId, userId } = job.data;
-    const { success, data } = result;
-    if (success) {
-      const { filenameWithoutExtension, filename, mimeType, fileSizeInBytes } =
-        await this._ffmpegService.getFileInfo(
-          `${process.cwd()}/storage/${data}`,
-        );
 
-      // TODO: Create media
-      const media = await this._APIService
-        .send('CREATE_MEDIA', {
-          path: data,
-          mimeType,
-          name: filenameWithoutExtension,
-          fileName: filename,
-          contentId: uuid(),
-          organizationId,
-          fileSize: fileSizeInBytes,
-          userId,
-          description: filename,
-          status: MediaStatus.UPLOADED,
+    const { filenameWithoutExtension, filename, mimeType, fileSizeInBytes } =
+      await this._ffmpegService.getFileInfo(
+        `${process.cwd()}/storage/${result}`,
+      );
+
+    // TODO: Create media
+    const media = await this._APIService
+      .send('CREATE_MEDIA', {
+        path: result,
+        mimeType,
+        name: filenameWithoutExtension,
+        fileName: filename,
+        contentId: uuid(),
+        organizationId,
+        fileSize: fileSizeInBytes,
+        userId,
+        description: filename,
+        status: MediaStatus.UPLOADED,
+      })
+      .pipe(timeout(15000))
+      .toPromise()
+      .then((result) => {
+        const { error, message, data: media } = result;
+        if (error) {
+          Logger.debug(`Create media with error : ${message}`);
+        }
+
+        return media;
+      })
+      .catch((error) => {
+        Logger.debug(`Create media with error : ${error.message}`);
+        return;
+      });
+
+    if (this._validatorService.canTranscode(mimeType)) {
+      // TODO: get template transcode
+      const template = await this._APIService
+        .send('GET_TRANSCODE_TEMPLATE', {
+          id: templateId,
         })
         .pipe(timeout(15000))
         .toPromise()
-        .then((result) => {
-          const { error, message, data: media } = result;
+        .then(async (result) => {
+          const { error, message, data } = result;
           if (error) {
-            Logger.debug(`Create media with error : ${message}`);
+            Logger.debug(`Get media template with error : ${message}`);
+            return;
           }
-
-          return media;
+          return data;
         })
         .catch((error) => {
-          Logger.debug(`Create media with error : ${error.message}`);
+          Logger.debug(`Get media template with error : ${error.message}`);
           return;
         });
 
-      if (this._validatorService.canTranscode(mimeType)) {
-        // TODO: Update media to "TRANSCODING"
-        await this._APIService
-          .send('UPDATE_MEDIA', {
-            contentId: media.contentId,
-            status: MediaStatus.TRANSCODING,
-          })
-          .pipe(timeout(15000))
-          .toPromise()
-          .then((result) => {
-            const { error, message, data } = result;
-            if (error) {
-              Logger.debug(
-                `Update media status [TRANSCODING] with error : ${message}`,
-              );
-              return;
-            }
-            return data;
-          })
-          .catch((error) => {
-            Logger.debug(
-              `Update media status [TRANSCODING] with error : ${error.message}`,
-            );
-            return;
-          });
-        // TODO: get template transcode
-        const template = await this._APIService
-          .send('GET_TRANSCODE_TEMPLATE', {
-            id: templateId,
-          })
-          .pipe(timeout(15000))
-          .toPromise()
-          .then(async (result) => {
-            const { error, message, data } = result;
-            if (error) {
-              Logger.debug(`Get media template with error : ${message}`);
-              return;
-            }
-            return data;
-          })
-          .catch((error) => {
-            Logger.debug(`Get media template with error : ${error.message}`);
-            return;
-          });
+      // TODO: check if not have template or not have preset template
+      if (!template || template.presets.length === 0) {
+        return;
+      }
 
-        // TODO: Create media profile
-        const { codec: codecs, presets, packs } = template;
-        const { _id: mediaId } = media;
-        await Promise.all(
-          codecs.map(async (codec: any) => {
-            for (const preset of presets) {
-              const { videoBitrate, frames, audioBitrate, name, frameSize } =
-                preset;
-              await this._APIService
-                .send('CREATE_MEDIA_PROFILE', {
-                  mediaId,
-                  codec,
-                  videoBitrate,
-                  frames,
-                  audioBitrate,
-                  name,
-                  frameSize,
-                })
-                .pipe(timeout(15000))
-                .toPromise()
-                .then((result) => {
-                  const { error, message } = result;
-                  if (error) {
-                    Logger.debug(
-                      `Create media profile with error : ${message}`,
-                    );
-                    return;
-                  }
-                })
-                .catch((error) => {
-                  Logger.debug(
-                    `Create media profile with error : ${error.message}`,
-                  );
+      // TODO: Create media profile
+      const { codec: codecs, presets, packs } = template;
+      const { _id: mediaId } = media;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const profiles = await Promise.all(
+        codecs.map(async (codec: any) => {
+          for (const preset of presets) {
+            const { videoBitrate, frames, audioBitrate, name, frameSize } =
+              preset;
+            await this._APIService
+              .send('CREATE_MEDIA_PROFILE', {
+                mediaId,
+                codec,
+                videoBitrate,
+                frames,
+                audioBitrate,
+                name,
+                frameSize,
+              })
+              .pipe(timeout(15000))
+              .toPromise()
+              .then((result) => {
+                const { error, message } = result;
+                if (error) {
+                  Logger.debug(`Create media profile with error : ${message}`);
                   return;
-                });
-            }
-          }),
-        );
+                }
+              })
+              .catch((error) => {
+                Logger.debug(
+                  `Create media profile with error : ${error.message}`,
+                );
+                return;
+              });
+          }
+        }),
+      );
 
-        // TODO: Create media packaging
-        const packsPromise = packs.map(async (pack: string) => {
+      // TODO: Create media packaging
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const packsPromise = await Promise.all(
+        packs.map(async (pack: string) => {
           for (const codec of codecs) {
             await this._APIService
               .send('CREATE_MEDIA_PACKAGING', {
@@ -188,42 +171,48 @@ export class SyncFileProcessor {
                 return;
               });
           }
+        }),
+      );
+
+      // TODO: Get media with profile and call to service transcode
+      const mediaTranscode = await this._APIService
+        .send('GET_MEDIA', {
+          contentId: media.contentId,
+        })
+        .pipe(timeout(15000))
+        .toPromise()
+        .then(async (result) => {
+          const { error, message, data } = result;
+          if (error) {
+            Logger.debug(`Get media with error : ${message}`);
+            return;
+          }
+          return data;
+        })
+        .catch((error) => {
+          Logger.debug(`Get media with error : ${error.message}`);
+          return;
         });
 
-        await Promise.all(packsPromise);
+      // TODO: Generate Thumbnail
+      this._transcodeService
+        .send('GENERATE_THUMBNAIL', {
+          media,
+        })
+        .toPromise()
+        .catch((error) => {
+          Logger.debug(`Generate thumbnail with error : ${error.message}`);
+        });
 
-        // TODO: Get media with profile and call to service transcode
-        const mediaTranscode = await this._APIService
-          .send('GET_MEDIA', {
-            contentId: media.contentId,
-          })
-          .pipe(timeout(15000))
-          .toPromise()
-          .then(async (result) => {
-            const { error, message, data } = result;
-            if (error) {
-              Logger.debug(`Get media with error : ${message}`);
-              return;
-            }
-            return data;
-          })
-          .catch((error) => {
-            Logger.debug(`Get media with error : ${error.message}`);
-            return;
-          });
-
-        // TODO: Call to service transcode
-        await this._transcodeService
-          .send('TRANSCODE_MEDIA_FILE', {
-            media: mediaTranscode,
-          })
-          .toPromise()
-          .catch((error) => {
-            Logger.debug(
-              `Transcode media profile with error : ${error.message}`,
-            );
-          });
-      }
+      // TODO: Call to service transcode
+      this._transcodeService
+        .send('TRANSCODE_MEDIA_FILE', {
+          media: mediaTranscode,
+        })
+        .toPromise()
+        .catch((error) => {
+          Logger.debug(`Transcode media profile with error : ${error.message}`);
+        });
     }
   }
 }
