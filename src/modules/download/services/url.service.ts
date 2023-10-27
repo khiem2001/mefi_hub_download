@@ -6,7 +6,9 @@ import { v4 as uuid } from 'uuid';
 @Injectable()
 export class UrlService {
   async download(url: string, targetPath: string) {
-    const fileExtension = url.split('.').pop();
+    // const fileExtension = url.split('.').pop();
+    const fileExtension = 'mp4';
+
     const prefix: string = uuid();
 
     const fileName = `${prefix}.${fileExtension}`;
