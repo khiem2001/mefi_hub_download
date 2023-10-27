@@ -26,13 +26,9 @@ export class FacebookService {
 
       await browser.close();
 
-      if (videoUrl) {
-        return { videoUrl };
-      } else {
-        throw new Error('Video URL not found.');
-      }
+      if (videoUrl) return { videoUrl };
+      else throw new Error('Video URL not found.');
     } catch (error) {
-      console.log(error);
       throw new Error('URL invalid!');
     }
   }
