@@ -2,12 +2,17 @@ import { Injectable } from '@nestjs/common';
 import * as cp from 'child_process';
 import * as readline from 'readline';
 import * as ytdl from 'ytdl-core';
+import { v4 as uuid } from 'uuid';
 
 @Injectable()
 export class YoutubeService {
   constructor() {}
 
-  async download(url: string, path: string) {
+  async download(url: string, targetPath: string) {
+    const prefix: string = uuid();
+    const fileExtension = 'mp4';
+    const fileName = `${prefix}.${fileExtension}`;
+
     const ffmpeg = require('ffmpeg-static');
     const tracker = {
       start: Date.now(),
@@ -102,7 +107,7 @@ export class YoutubeService {
         '-c:v',
         'copy',
         // Define output file
-        `${path}`,
+        `${targetPath}/${fileName}`,
       ],
       {
         windowsHide: true,
@@ -154,7 +159,9 @@ export class YoutubeService {
       // audio.on('finish', resolve);
       video.on('error', reject);
       audio.on('error', reject);
-      ffmpegProcess.on('close', resolve);
+      ffmpegProcess.on('close', () => {
+        resolve(`${targetPath.replace(/^storage\//, '')}/${fileName}`);
+      });
     });
   }
 }
