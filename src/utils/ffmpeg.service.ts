@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as mime from 'mime';
+import * as ffmpeg from 'fluent-ffmpeg';
 
 interface FileInfo {
   filename: string;
@@ -13,6 +14,31 @@ interface FileInfo {
 
 @Injectable()
 export class FfmpegService {
+  async getVideoInfo(videoPath: string): Promise<{
+    durationInSeconds: number;
+    resolution: { width: number; height: number };
+  }> {
+    return new Promise<{
+      durationInSeconds: number;
+      resolution: { width: number; height: number };
+    }>((resolve, reject) => {
+      ffmpeg.ffprobe(videoPath, (err, metadata) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        const durationInSeconds = metadata.format.duration || 0;
+        const resolution = {
+          width: metadata.streams[0].width || 0,
+          height: metadata.streams[0].height || 0,
+        };
+
+        resolve({ durationInSeconds, resolution });
+      });
+    });
+  }
+
   async getFileInfo(filePath: string): Promise<FileInfo | null> {
     try {
       const stats = fs.statSync(filePath);

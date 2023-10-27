@@ -49,6 +49,9 @@ export class SyncFileProcessor {
         `${process.cwd()}/storage/${result}`,
       );
 
+    const { durationInSeconds, resolution } =
+      await this._ffmpegService.getVideoInfo(`storage/${result}`);
+
     // TODO: Create media
     const media = await this._APIService
       .send('CREATE_MEDIA', {
@@ -62,6 +65,8 @@ export class SyncFileProcessor {
         userId,
         description: filename,
         status: MediaStatus.UPLOADED,
+        durationInSeconds,
+        frameSize: resolution,
       })
       .pipe(timeout(15000))
       .toPromise()
