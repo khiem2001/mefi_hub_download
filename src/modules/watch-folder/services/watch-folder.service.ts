@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import { existsSync, mkdirSync } from 'fs';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuid } from 'uuid';
+import { checkUsedFileName, getMimeByFileName, isVideoFile } from 'helpers/file';
 
 @Injectable()
 export class WatchFolderService {
@@ -79,11 +80,19 @@ export class WatchFolderService {
     const contents: any = [];
 
     for (const item of list) {
+      const mime = getMimeByFileName(item.name)
+      if (isVideoFile(mime) || item.type ==='d') {
       contents.push({
         name: item.name,
         size: item.size,
         isDirectory: item.type === 'd',
+        mime,
+        birthtime: item.accessTime,
+        modifiedDate: item.modifyTime,
+        requestPath: `${currentPath}/${item.name}`,
+        used: checkUsedFileName(item.name)
       });
+      }
     }
 
     return {

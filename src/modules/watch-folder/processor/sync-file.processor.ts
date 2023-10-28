@@ -14,6 +14,7 @@ import { ValidatorService } from 'utils/validator.service';
 import { FfmpegService } from 'utils/ffmpeg.service';
 import { ClientProxy } from '@nestjs/microservices';
 import { v4 as uuid } from 'uuid';
+import { writeFileName } from 'helpers/file';
 
 @Processor('sync')
 export class SyncFileProcessor {
@@ -42,7 +43,7 @@ export class SyncFileProcessor {
 
   @OnQueueCompleted()
   async onSyncComplete(job: Job, result: any) {
-    const { templateId, organizationId, userId } = job.data;
+    const { templateId, organizationId, userId, path } = job.data;
 
     const { filenameWithoutExtension, filename, mimeType, fileSizeInBytes } =
       await this._ffmpegService.getFileInfo(
@@ -214,5 +215,7 @@ export class SyncFileProcessor {
           Logger.debug(`Transcode media profile with error : ${error.message}`);
         });
     }
+
+    return writeFileName(path)
   }
 }
