@@ -6,6 +6,7 @@ import { checkUsedFileName, getMimeByFileName, isVideoFile } from 'helpers/file'
 import * as path from 'path';
 import * as SftpClient from 'ssh2-sftp-client';
 import { v4 as uuid } from 'uuid';
+import * as fs from 'fs'
 
 @Injectable()
 export class WatchFolderService {
@@ -40,6 +41,7 @@ export class WatchFolderService {
   async syncFileToStorage({ srcPath, organizationId }) {
     const sftp = new SftpClient();
     await sftp.connect(FTP_CONFIG);
+
     if (await this.isSftpFolder(sftp, `${this._watchFolder}/${srcPath}`)) {
       return {
         success: false,
@@ -47,32 +49,30 @@ export class WatchFolderService {
         message: 'This is folder not is file !',
       };
     }
+
     const storageDir = `${process.cwd()}/storage/${organizationId}`;
+
     if (!existsSync(storageDir)) {
       mkdirSync(storageDir, { recursive: true });
     }
 
     const fileExtension = srcPath.split('.').pop();
     const prefix: string = uuid();
-    const fileName = `${prefix}.${fileExtension}`;
-    try {
-      const remotePath = `${this._watchFolder}/${srcPath}`;
-      const localPath = `${storageDir}/${fileName}`;
-      await sftp.fastGet(remotePath, localPath); // Pass localPath directly as a string
-      return {
-        success: true,
-        data: `${organizationId}/${fileName}`,
-        message: 'Sync file successfully!',
-      };
-    } catch (err) {
-      console.log('err', err)
-      return {
-        success: false,
-        data: null,
-        message: err.message,
-      };
-    }
 
+    const fileName = `${prefix}.${fileExtension}`;
+
+    return new Promise(async (resolve, reject) => {
+      try {
+        await sftp.get(
+          `${this._watchFolder}/${srcPath}`,
+          fs.createWriteStream(`${storageDir}/${fileName}`),
+        );
+        resolve(`${organizationId}/${fileName}`);
+      } catch (error) {
+        await sftp.end();
+        reject(error.message);
+      }
+    });
   }
 
   private async recursiveList(sftp: SftpClient, currentPath: string) {
