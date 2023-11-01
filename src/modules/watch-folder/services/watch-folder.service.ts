@@ -25,18 +25,7 @@ export class WatchFolderService {
           ? `${this._watchFolder}/${filePath}`
           : this._watchFolder;
 
-      const list = await this.recursiveList(sftp, currentPath);
-      if (filterName) {
-        // Filter the files based on a regular expression that matches the filterName
-        const filterRegex = new RegExp(`.*${filterName}.*`, 'i');
-        const result = list.data.filter(file => filterRegex.test(file.name));
-        return {
-          success: true,
-          data: result,
-        };
-      }
-      return list
-
+      return await this.recursiveList(sftp, currentPath, filterName);
     } catch (error) {
       return {
         success: true,
@@ -84,10 +73,9 @@ export class WatchFolderService {
     });
   }
 
-  private async recursiveList(sftp: SftpClient, currentPath: string) {
+  private async recursiveList(sftp: SftpClient, currentPath: string, filterName?: string) {
     const list = await sftp.list(currentPath);
     const contents: any = [];
-
     for (const item of list) {
       const mime = getMimeByFileName(item.name)
       if (isVideoFile(mime) || item.type === 'd') {
@@ -102,6 +90,15 @@ export class WatchFolderService {
           used: checkUsedFileName(item.name)
         });
       }
+    }
+
+    if (filterName) {
+      const filterRegex = new RegExp(`.*${filterName}.*`, 'i');
+      const result = contents.filter(file => filterRegex.test(file.name));
+      return {
+        success: true,
+        data: result,
+      };
     }
 
     return {
