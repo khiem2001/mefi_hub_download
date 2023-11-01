@@ -16,18 +16,27 @@ export class WatchFolderService {
     this._watchFolder = this._configService.get('WATCH_FOLDER_PATH');
   }
 
-  async listDirectory(filePath: string) {
+  async listDirectory(filePath?: string, filterName?: string) {
     const sftp = new SftpClient();
-
     try {
       await sftp.connect(FTP_CONFIG);
-
       const currentPath =
         filePath !== undefined
           ? `${this._watchFolder}/${filePath}`
           : this._watchFolder;
 
-      return await this.recursiveList(sftp, currentPath);
+      const list = await this.recursiveList(sftp, currentPath);
+      if (filterName) {
+        // Filter the files based on a regular expression that matches the filterName
+        const filterRegex = new RegExp(`.*${filterName}.*`, 'i');
+        const result = list.data.filter(file => filterRegex.test(file.name));
+        return {
+          success: true,
+          data: result,
+        };
+      }
+      return list
+
     } catch (error) {
       return {
         success: true,
@@ -81,17 +90,17 @@ export class WatchFolderService {
 
     for (const item of list) {
       const mime = getMimeByFileName(item.name)
-      if (isVideoFile(mime) || item.type ==='d') {
-      contents.push({
-        name: item.name,
-        size: item.size,
-        isDirectory: item.type === 'd',
-        mime,
-        birthtime: item.accessTime,
-        modifiedDate: item.modifyTime,
-        requestPath: `${currentPath}/${item.name}`,
-        used: checkUsedFileName(item.name)
-      });
+      if (isVideoFile(mime) || item.type === 'd') {
+        contents.push({
+          name: item.name,
+          size: item.size,
+          isDirectory: item.type === 'd',
+          mime,
+          birthtime: item.accessTime,
+          modifiedDate: item.modifyTime,
+          requestPath: `${currentPath}/${item.name}`,
+          used: checkUsedFileName(item.name)
+        });
       }
     }
 
