@@ -22,7 +22,7 @@ export class WatchFolderController {
   constructor(
     @InjectQueue('sync') private readonly _syncQueue: Queue,
     private readonly _watchService: WatchFolderService,
-  ) {}
+  ) { }
 
   @Get('files')
   @HttpCode(HttpStatus.OK)
@@ -36,8 +36,17 @@ export class WatchFolderController {
     description: 'Folder name',
     required: false,
   })
-  async getListFile(@Query('folder') folder: string) {
-    return await this._watchService.listDirectory(folder);
+  @ApiQuery({
+    name: 'filterName',
+    type: String,
+    description: 'Filter name',
+    required: false,
+  })
+  async getListFile(
+    @Query('folder') folder: string,
+    @Query('filterName') filterName: string,
+  ) {
+    return await this._watchService.listDirectory(folder, filterName);
   }
 
   @Post('sync')
