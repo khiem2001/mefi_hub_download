@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import { existsSync, mkdirSync } from 'fs';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuid } from 'uuid';
-import { checkUsedFileName, getMimeByFileName, isVideoFile } from 'helpers/file';
+import { checkUsedFileName, getMimeByFileName } from 'helpers/file';
 
 @Injectable()
 export class WatchFolderService {
@@ -62,7 +62,7 @@ export class WatchFolderService {
     return new Promise(async (resolve, reject) => {
       try {
         await sftp.get(
-          `${this._watchFolder}/${srcPath}`,
+          `${srcPath}`,
           fs.createWriteStream(`${storageDir}/${fileName}`),
         );
         resolve(`${organizationId}/${fileName}`);
@@ -73,12 +73,19 @@ export class WatchFolderService {
     });
   }
 
-  private async recursiveList(sftp: SftpClient, currentPath: string, filterName?: string) {
+  private async recursiveList(
+    sftp: SftpClient,
+    currentPath: string,
+    filterName?: string,
+  ) {
     const list = await sftp.list(currentPath);
     const contents: any = [];
     for (const item of list) {
-      const mime = getMimeByFileName(item.name)
-      if (!filterName || (filterName && new RegExp(`.*${filterName}.*`, 'i').test(item.name))) {
+      const mime = getMimeByFileName(item.name);
+      if (
+        !filterName ||
+        (filterName && new RegExp(`.*${filterName}.*`, 'i').test(item.name))
+      ) {
         contents.push({
           name: item.name,
           size: item.size,
@@ -87,7 +94,7 @@ export class WatchFolderService {
           birthtime: item.accessTime,
           modifiedDate: item.modifyTime,
           requestPath: `${currentPath}/${item.name}`,
-          used: checkUsedFileName(item.name)
+          used: checkUsedFileName(item.name),
         });
       }
     }
