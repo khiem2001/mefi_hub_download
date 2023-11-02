@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as SftpClient from 'ssh2-sftp-client';
 import { FTP_CONFIG } from 'configs/ftp.config';
-import * as path from 'path';
 import * as fs from 'fs';
 import { existsSync, mkdirSync } from 'fs';
 import { ConfigService } from '@nestjs/config';
@@ -10,12 +9,25 @@ import { checkUsedFileName, getMimeByFileName } from 'helpers/file';
 
 @Injectable()
 export class WatchFolderService {
+  /**
+   * Watch folder const
+   * @private
+   */
   private readonly _watchFolder: string;
 
+  /**
+   *
+   * @param _configService
+   */
   constructor(private readonly _configService: ConfigService) {
     this._watchFolder = this._configService.get('WATCH_FOLDER_PATH');
   }
 
+  /**
+   * RecursiveList file in watch folder
+   * @param filePath
+   * @param filterName
+   */
   async listDirectory(filePath?: string, filterName?: string) {
     const sftp = new SftpClient();
     try {
@@ -36,31 +48,28 @@ export class WatchFolderService {
     }
   }
 
+  /**
+   * Sync file from watch folder to storage
+   * @param srcPath
+   * @param organizationId
+   */
   async syncFileToStorage({ srcPath, organizationId }) {
     const sftp = new SftpClient();
     await sftp.connect(FTP_CONFIG);
 
-    if (await this.isSftpFolder(sftp, `${this._watchFolder}/${srcPath}`)) {
-      return {
-        success: false,
-        data: srcPath,
-        message: 'This is folder not is file !',
-      };
-    }
-
-    const storageDir = `${process.cwd()}/storage/${organizationId}`;
-
-    if (!existsSync(storageDir)) {
-      mkdirSync(storageDir, { recursive: true });
-    }
-
-    const fileExtension = srcPath.split('.').pop();
-    const prefix: string = uuid();
-
-    const fileName = `${prefix}.${fileExtension}`;
-
     return new Promise(async (resolve, reject) => {
       try {
+        const storageDir = `${process.cwd()}/storage/${organizationId}`;
+
+        if (!existsSync(storageDir)) {
+          mkdirSync(storageDir, { recursive: true });
+        }
+
+        const fileExtension = srcPath.split('.').pop();
+        const prefix: string = uuid();
+
+        const fileName = `${prefix}.${fileExtension}`;
+
         await sftp.get(
           `${srcPath}`,
           fs.createWriteStream(`${storageDir}/${fileName}`),
@@ -68,11 +77,18 @@ export class WatchFolderService {
         resolve(`${organizationId}/${fileName}`);
       } catch (error) {
         await sftp.end();
-        reject(error.message);
+        reject(error);
       }
     });
   }
 
+  /**
+   * RecursiveList
+   * @param sftp
+   * @param currentPath
+   * @param filterName
+   * @private
+   */
   private async recursiveList(
     sftp: SftpClient,
     currentPath: string,
@@ -105,6 +121,12 @@ export class WatchFolderService {
     };
   }
 
+  /**
+   * Check is file
+   * @param sftp
+   * @param path
+   * @private
+   */
   private async isSftpFile(sftp: SftpClient, path: string): Promise<boolean> {
     try {
       const fileStat = await sftp.stat(path);
@@ -114,6 +136,12 @@ export class WatchFolderService {
     }
   }
 
+  /**
+   * Check is folder
+   * @param sftp
+   * @param path
+   * @private
+   */
   private async isSftpFolder(sftp: SftpClient, path: string): Promise<boolean> {
     try {
       const fileStat = await sftp.stat(path);
@@ -121,9 +149,5 @@ export class WatchFolderService {
     } catch (error) {
       return false;
     }
-  }
-
-  private getFileNameFromPath(filePath: string) {
-    return path.basename(filePath);
   }
 }

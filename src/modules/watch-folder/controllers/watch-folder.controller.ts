@@ -22,7 +22,7 @@ export class WatchFolderController {
   constructor(
     @InjectQueue('sync') private readonly _syncQueue: Queue,
     private readonly _watchService: WatchFolderService,
-  ) { }
+  ) {}
 
   @Get('files')
   @HttpCode(HttpStatus.OK)

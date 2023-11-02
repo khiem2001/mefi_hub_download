@@ -216,6 +216,6 @@ export class SyncFileProcessor {
         });
     }
 
-    return writeFileName(path)
+    return writeFileName(path);
   }
 }
