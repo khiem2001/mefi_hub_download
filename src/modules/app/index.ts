@@ -6,11 +6,13 @@ import { DownloadModule } from 'modules/download';
 import { join } from 'path';
 import { CommandModule } from 'nestjs-command';
 import { WatchFolderModule } from 'modules/watch-folder';
+import { PubSubModule } from 'modules/subscription';
 
 @Module({
   imports: [
     AuthModule,
     DownloadModule,
+    PubSubModule,
     ConfigModule.forRoot({ isGlobal: true }),
     ServeStaticModule.forRootAsync({
       useFactory: () => [

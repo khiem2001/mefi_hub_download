@@ -1,167 +1,91 @@
-import { Injectable } from '@nestjs/common';
-import * as cp from 'child_process';
-import * as readline from 'readline';
+import { Inject, Injectable } from '@nestjs/common';
 import * as ytdl from 'ytdl-core';
 import { v4 as uuid } from 'uuid';
+import * as fs from 'fs';
+import { PUB_SUB } from 'modules/subscription';
+import { RedisPubSub } from 'graphql-redis-subscriptions';
 
 @Injectable()
 export class YoutubeService {
-  constructor() {}
+  constructor(@Inject(PUB_SUB) private _pubSub: RedisPubSub) {}
 
-  async download(url: string, targetPath: string) {
+  /**
+   * Download video
+   * @param media
+   * @param progressCallback
+   */
+  async downloadVideo(
+    media: any,
+    progressCallback?: (percent: number) => void,
+  ) {
+    const { source, organizationId } = media;
+    const storageDir = `storage/${organizationId}`;
     const prefix: string = uuid();
-    const fileExtension = 'mp4';
-    const fileName = `${prefix}.${fileExtension}`;
 
-    const ffmpeg = require('ffmpeg-static');
-    const tracker = {
-      start: Date.now(),
-      audio: { downloaded: 0, total: Infinity },
-      video: { downloaded: 0, total: Infinity },
-      merged: { frame: 0, speed: '0x', fps: 0 },
-    };
+    const fileName = `${prefix}.mp4`;
 
-    // Get audio and video streams
-    const audio = ytdl(url, { quality: 'highestaudio' }).on(
-      'progress',
-      (_, downloaded, total) => {
-        tracker.audio = { downloaded, total };
-      },
-    );
-    const video = ytdl(url, { quality: 'highestvideo' }).on(
-      'progress',
-      (_, downloaded, total) => {
-        tracker.video = { downloaded, total };
-      },
-    );
-
-    // Prepare the progress bar
-    let progressbarHandle = null;
-    const progressbarInterval = 1000;
-    const showProgress = () => {
-      readline.cursorTo(process.stdout, 0);
-      const toMB = (i) => (i / 1024 / 1024).toFixed(2);
-
-      process.stdout.write(
-        `Audio  | ${(
-          (tracker.audio.downloaded / tracker.audio.total) *
-          100
-        ).toFixed(2)}% processed `,
-      );
-      process.stdout.write(
-        `(${toMB(tracker.audio.downloaded)}MB of ${toMB(
-          tracker.audio.total,
-        )}MB).${' '.repeat(10)}\n`,
-      );
-
-      process.stdout.write(
-        `Video  | ${(
-          (tracker.video.downloaded / tracker.video.total) *
-          100
-        ).toFixed(2)}% processed `,
-      );
-      process.stdout.write(
-        `(${toMB(tracker.video.downloaded)}MB of ${toMB(
-          tracker.video.total,
-        )}MB).${' '.repeat(10)}\n`,
-      );
-
-      process.stdout.write(
-        `Merged | processing frame ${tracker.merged.frame} `,
-      );
-      process.stdout.write(
-        `(at ${tracker.merged.fps} fps => ${tracker.merged.speed}).${' '.repeat(
-          10,
-        )}\n`,
-      );
-
-      process.stdout.write(
-        `running for: ${((Date.now() - tracker.start) / 1000 / 60).toFixed(
-          2,
-        )} Minutes.`,
-      );
-      readline.moveCursor(process.stdout, 0, -3);
-    };
-    // Start the ffmpeg child process
-    const ffmpegProcess: any = cp.spawn(
-      ffmpeg,
-      [
-        // Remove ffmpeg's console spamming
-        '-loglevel',
-        '8',
-        '-hide_banner',
-        // Redirect/Enable progress messages
-        '-progress',
-        'pipe:3',
-        // Set inputs
-        '-i',
-        'pipe:4',
-        '-i',
-        'pipe:5',
-        // Map audio & video from streams
-        '-map',
-        '0:a',
-        '-map',
-        '1:v',
-        // Keep encoding
-        '-c:v',
-        'copy',
-        // Define output file
-        `${targetPath}/${fileName}`,
-      ],
-      {
-        windowsHide: true,
-        stdio: [
-          /* Standard: stdin, stdout, stderr */
-          'inherit',
-          'inherit',
-          'inherit',
-          /* Custom: pipe:3, pipe:4, pipe:5 */
-          'pipe',
-          'pipe',
-          'pipe',
-        ],
-      },
-    );
-    ffmpegProcess.on('close', () => {
-      console.log('done ');
-      // Cleanup
-      process.stdout.write('\n\n\n\n');
-      clearInterval(progressbarHandle);
+    const videoStream = ytdl(source, {
+      quality: 'highest',
+      filter: 'audioandvideo',
     });
 
-    // Link streams
-    // FFmpeg creates the transformer streams and we just have to insert / read data
-    ffmpegProcess.stdio[3].on('data', (chunk) => {
-      // Start the progress bar
-      if (!progressbarHandle)
-        progressbarHandle = setInterval(showProgress, progressbarInterval);
-      // Parse the param=value list returned by ffmpeg
-      const lines = chunk.toString().trim().split('\n');
-      const args: any = {};
-      for (const l of lines) {
-        const [key, value] = l.split('=');
-        args[key.trim()] = value.trim();
-      }
-      tracker.merged = args;
-    });
+    const destinationPath = `${storageDir}/${fileName}`;
 
-    audio.pipe(ffmpegProcess.stdio[4]);
-    video.pipe(ffmpegProcess.stdio[5]);
-    video.on('finish', () => {
-      console.log('=>>Finished video');
-    });
-    audio.on('finish', () => {
-      console.log('=>>Finished audio');
-    });
-    return new Promise((resolve, reject) => {
-      // video.on('finish', resolve);
-      // audio.on('finish', resolve);
-      video.on('error', reject);
-      audio.on('error', reject);
-      ffmpegProcess.on('close', () => {
-        resolve(`${targetPath.replace(/^storage\//, '')}/${fileName}`);
+    const fileStream = fs.createWriteStream(destinationPath);
+
+    videoStream.on('progress', async (chunkLength, downloaded, total) => {
+      const percent = (downloaded / total) * 100;
+      progressCallback && progressCallback(percent);
+      // TODO: Subscription "MEDIA DOWNLOAD PROCESS"
+      await this._pubSub.publish('DOWNLOAD_PROGRESS', {
+        data: {
+          media,
+          progress: `${Math.abs(percent)}`,
+        },
       });
     });
+
+    return new Promise<{ path: string; media: any }>((resolve, reject) => {
+      videoStream.pipe(fileStream);
+
+      fileStream.on('finish', () => {
+        resolve({
+          path: `${destinationPath.replace(/^storage\//, '')}`,
+          media: media,
+        });
+      });
+
+      fileStream.on('error', (err) => {
+        reject(err);
+      });
+    });
+  }
+
+  /**
+   * Get video metadata from link youtube
+   * @param videoUrl
+   */
+  async getYoutubeVideoMetadata(videoUrl: string): Promise<{
+    name: string;
+    durationInSeconds: number;
+    frameSize: {
+      width: number;
+      height: number;
+    };
+  }> {
+    const info = await ytdl.getInfo(videoUrl);
+
+    const highestQualityFormat = ytdl.chooseFormat(info.formats, {
+      quality: 'highestvideo',
+    });
+
+    return {
+      name: info.videoDetails.title,
+      durationInSeconds: parseInt(info.videoDetails.lengthSeconds),
+      frameSize: {
+        width: highestQualityFormat?.width,
+        height: highestQualityFormat?.height,
+      },
+    };
   }
 }
