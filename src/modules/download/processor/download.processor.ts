@@ -9,7 +9,7 @@ import { Job } from 'bull';
 import { Inject, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { FacebookService, UrlService, YoutubeService } from '../services';
-import { GetInfoFromUrl } from 'helpers/url';
+import { GetInfoFromUrl, detectUrl } from 'helpers/url';
 import { existsSync, mkdirSync } from 'fs';
 import { MediaStatus } from 'shared/enum/file';
 import { timeout } from 'rxjs';
@@ -37,7 +37,7 @@ export class DownloadProcessor {
   @OnQueueActive()
   async onActive(job: Job) {
     const { url, organizationId, userId } = job.data;
-    const { type } = await GetInfoFromUrl(url);
+    const type = await detectUrl(url);
 
     const storageDir = `storage/${organizationId}`;
 
@@ -46,6 +46,7 @@ export class DownloadProcessor {
     }
 
     let fileMetadata: {
+      source?: any;
       name: any;
       durationInSeconds: any;
       frameSize: any;
@@ -57,7 +58,10 @@ export class DownloadProcessor {
         fileMetadata = await this._youtubeService.getYoutubeVideoMetadata(url);
         break;
       case SocialSource.FACEBOOK:
-        fileMetadata = await this._urlService.getRemoteMP4Metadata(url);
+        fileMetadata =
+          await this._facebookService.getFacebookVideoMetadata(url);
+        console.log(fileMetadata);
+
         break;
       default:
         fileMetadata = await this._urlService.getRemoteMP4Metadata(url);
@@ -75,7 +79,7 @@ export class DownloadProcessor {
         description: name,
         durationInSeconds,
         frameSize,
-        source: url,
+        source: fileMetadata?.source || url,
         status: MediaStatus.UPLOADING,
       })
       .pipe(timeout(15000))
@@ -263,7 +267,7 @@ export class DownloadProcessor {
   private async downloadVideoProcess(type: SocialSource, media: any) {
     switch (type) {
       case SocialSource.FACEBOOK:
-        return await this._youtubeService.downloadVideo(
+        return await this._urlService.downloadVideo(
           media,
           (process: number) => {
             console.log('process', process);
