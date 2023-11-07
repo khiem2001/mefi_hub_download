@@ -7,10 +7,7 @@ import * as pathToFfprobe from 'ffprobe-static';
 import * as Ffmpeg from 'fluent-ffmpeg';
 import { PUB_SUB } from 'modules/subscription';
 import { RedisPubSub } from 'graphql-redis-subscriptions';
-import { html } from 'cheerio/lib/api/manipulation';
-import { resolve } from 'path';
 const puppeteer = require('puppeteer');
-const cheerio = require('cheerio');
 
 @Injectable()
 export class FacebookService {
@@ -27,7 +24,7 @@ export class FacebookService {
       this._ffmpeg = Ffmpeg();
 
       const browser = await puppeteer.launch({
-        headless: false,
+        headless: true,
         args: ['--no-sandbox', '--disable-features=site-per-process'],
         protocolTimeout: 999999,
       });
@@ -39,24 +36,24 @@ export class FacebookService {
       });
 
       let pageContent = await page.content();
-      const $ = cheerio.load(pageContent);
 
-      const videoElement = $('video').first();
-      const videoSrc = videoElement.attr('src');
-      const pElement = $('p').first();
-      const pContent = pElement.text();
+      const videoSrc = url;
 
       const regex =
         /all_video_dash_prefetch_representations":\[{"representations":(.*),"video_id":/gm;
-
+      // "https://www.facebook.com/VieComedyDatVietVAC/videos/6643796835733461"
       const videos = JSON.parse(regex.exec(pageContent)?.[1]);
 
-      console.log(videos);
-
-      await new Promise((resolve) => setTimeout(resolve, 500000));
-      // await browser.close();
-      if (!videoSrc) throw new Error('Video URL not found.');
-
+      let videoInfo: any = null;
+      let highestResolution = 0;
+      for (const video of videos) {
+        const resolution = video.width * video.height;
+        if (resolution > highestResolution) {
+          highestResolution = resolution;
+          videoInfo = video;
+        }
+      }
+      await browser.close();
       return new Promise<{
         source;
         name: string;
@@ -67,14 +64,15 @@ export class FacebookService {
         };
         mimeType: string;
       }>((resolve, reject) => {
-        this._ffmpeg.input(videoSrc).ffprobe((err, metadata) => {
+        this._ffmpeg.input(videoInfo?.base_url).ffprobe((err, metadata) => {
           if (err) {
             reject(err);
           } else {
+            console.log(metadata);
             const format = metadata.format;
             resolve({
-              source: videoSrc,
-              name: pContent || 'Video Facebook',
+              source: videoInfo?.base_url,
+              name: 'Video Facebook',
               mimeType: format.format_name,
               durationInSeconds: format.duration,
               frameSize: {
