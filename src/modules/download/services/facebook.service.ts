@@ -8,7 +8,6 @@ import * as Ffmpeg from 'fluent-ffmpeg';
 import { PUB_SUB } from 'modules/subscription';
 import { RedisPubSub } from 'graphql-redis-subscriptions';
 const puppeteer = require('puppeteer');
-
 @Injectable()
 export class FacebookService {
   private _ffmpeg: Ffmpeg.FfmpegCommand;
@@ -21,10 +20,15 @@ export class FacebookService {
 
   async getFacebookVideoMetadata(url: string) {
     try {
+      //init variable
       this._ffmpeg = Ffmpeg();
+      let videoInfo: any = null;
+      let highestResolution = 0;
+      let source = null;
 
+      //puppeteer
       const browser = await puppeteer.launch({
-        headless: true,
+        headless: 'new',
         args: ['--no-sandbox', '--disable-features=site-per-process'],
         protocolTimeout: 999999,
       });
@@ -35,24 +39,36 @@ export class FacebookService {
         waitUntil: 'networkidle0',
       });
 
-      let pageContent = await page.content();
+      //Get title video
+      const ogTitle = await page.$eval(
+        'meta[property="og:title"]',
+        (element) => {
+          return element.getAttribute('content');
+        },
+      );
 
-      const videoSrc = url;
-
+      //Get video url
+      const pageContent = await page.content();
       const regex =
-        /all_video_dash_prefetch_representations":\[{"representations":(.*),"video_id":/gm;
-      // "https://www.facebook.com/VieComedyDatVietVAC/videos/6643796835733461"
-      const videos = JSON.parse(regex.exec(pageContent)?.[1]);
+        /all_video_dash_prefetch_representations":(.*),"is_final":/gm;
+      const match = regex.exec(pageContent);
 
-      let videoInfo: any = null;
-      let highestResolution = 0;
-      for (const video of videos) {
-        const resolution = video.width * video.height;
-        if (resolution > highestResolution) {
-          highestResolution = resolution;
-          videoInfo = video;
+      if (match) {
+        const videos = JSON.parse(match?.[1]);
+        if (videos[0]?.representations?.length > 0) {
+          //Get video info highestQuality
+          for (const video of videos[0]?.representations) {
+            const resolution = video.width * video.height;
+            if (resolution > highestResolution) {
+              highestResolution = resolution;
+              videoInfo = video;
+            }
+          }
+          //Get video url mp4
+          source = videoInfo?.base_url;
         }
       }
+
       await browser.close();
       return new Promise<{
         source;
@@ -64,15 +80,14 @@ export class FacebookService {
         };
         mimeType: string;
       }>((resolve, reject) => {
-        this._ffmpeg.input(videoInfo?.base_url).ffprobe((err, metadata) => {
+        this._ffmpeg.input(source).ffprobe((err, metadata) => {
           if (err) {
             reject(err);
           } else {
-            console.log(metadata);
             const format = metadata.format;
             resolve({
-              source: videoInfo?.base_url,
-              name: 'Video Facebook',
+              source,
+              name: ogTitle?.substring(0, 200) || 'Video Facebook',
               mimeType: format.format_name,
               durationInSeconds: format.duration,
               frameSize: {

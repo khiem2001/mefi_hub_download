@@ -60,8 +60,6 @@ export class DownloadProcessor {
       case SocialSource.FACEBOOK:
         fileMetadata =
           await this._facebookService.getFacebookVideoMetadata(url);
-        console.log(fileMetadata);
-
         break;
       default:
         fileMetadata = await this._urlService.getRemoteMP4Metadata(url);
