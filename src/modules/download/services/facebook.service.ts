@@ -26,15 +26,15 @@ export class FacebookService {
       let videoInfo: any = null;
       let highestResolution = 0;
       let source = null;
-      let ogTitle = 'Video Facebook';
       let pageContent = null;
 
       //puppeteer
       const browser = await puppeteer.launch({
-        headless: false,
+        headless: 'new',
         args: ['--no-sandbox', '--disable-features=site-per-process'],
         protocolTimeout: 999999,
       });
+
       const page = await browser.newPage();
 
       // Truy cập trang Facebook Video URL
@@ -46,22 +46,23 @@ export class FacebookService {
       const loginRegex = /<title id="pageTitle">Log in to Facebook<\/title>/;
       if (loginRegex.test(pageContent)) {
         await page.setCookie(...cookies);
-        await page.waitForNavigation();
-        pageContent = await page.content();
-      } else {
-        // Get title video
-        ogTitle = await page.$eval('meta[property="og:title"]', (element) => {
-          return element?.getAttribute('content') || 'Video Facebook';
+        await page.goto(url, {
+          waitUntil: 'networkidle0',
         });
+        pageContent = await page.content();
       }
+
+      const titleRegex = /<title>(.*)<\/title>/gm;
+      const matchTitle = titleRegex.exec(pageContent);
+      const name = matchTitle?.[1] ? matchTitle?.[1] : 'Video Facebook';
 
       //Get video url
       const regex =
         /all_video_dash_prefetch_representations":(.*),"is_final":/gm;
-      const match = regex.exec(pageContent);
+      const matchVideo = regex.exec(pageContent);
 
-      if (match) {
-        const videos = JSON.parse(match?.[1]);
+      if (matchVideo) {
+        const videos = JSON.parse(matchVideo?.[1]);
         if (videos[0]?.representations?.length > 0) {
           //Get video info highestQuality
           for (const video of videos[0]?.representations) {
@@ -76,7 +77,7 @@ export class FacebookService {
         }
       }
 
-      // await browser.close();
+      await browser.close();
       return new Promise<{
         source;
         name: string;
@@ -94,7 +95,7 @@ export class FacebookService {
             const format = metadata.format;
             resolve({
               source,
-              name: 'Video Facebook',
+              name: name.substring(0, 200),
               mimeType: format.format_name,
               durationInSeconds: format.duration,
               frameSize: {
