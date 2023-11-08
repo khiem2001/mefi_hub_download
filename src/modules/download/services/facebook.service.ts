@@ -7,6 +7,7 @@ import * as pathToFfprobe from 'ffprobe-static';
 import * as Ffmpeg from 'fluent-ffmpeg';
 import { PUB_SUB } from 'modules/subscription';
 import { RedisPubSub } from 'graphql-redis-subscriptions';
+import { cookies } from 'configs/facebook.config';
 const puppeteer = require('puppeteer');
 @Injectable()
 export class FacebookService {
@@ -25,30 +26,36 @@ export class FacebookService {
       let videoInfo: any = null;
       let highestResolution = 0;
       let source = null;
+      let ogTitle = 'Video Facebook';
+      let pageContent = null;
 
       //puppeteer
       const browser = await puppeteer.launch({
-        headless: 'new',
+        headless: false,
         args: ['--no-sandbox', '--disable-features=site-per-process'],
         protocolTimeout: 999999,
       });
       const page = await browser.newPage();
 
-      // Truy cập trang Facebook
+      // Truy cập trang Facebook Video URL
       await page.goto(url, {
         waitUntil: 'networkidle0',
       });
+      pageContent = await page.content();
 
-      //Get title video
-      const ogTitle = await page.$eval(
-        'meta[property="og:title"]',
-        (element) => {
-          return element.getAttribute('content');
-        },
-      );
+      const loginRegex = /<title id="pageTitle">Log in to Facebook<\/title>/;
+      if (loginRegex.test(pageContent)) {
+        await page.setCookie(...cookies);
+        await page.waitForNavigation();
+        pageContent = await page.content();
+      } else {
+        // Get title video
+        ogTitle = await page.$eval('meta[property="og:title"]', (element) => {
+          return element?.getAttribute('content') || 'Video Facebook';
+        });
+      }
 
       //Get video url
-      const pageContent = await page.content();
       const regex =
         /all_video_dash_prefetch_representations":(.*),"is_final":/gm;
       const match = regex.exec(pageContent);
@@ -69,7 +76,7 @@ export class FacebookService {
         }
       }
 
-      await browser.close();
+      // await browser.close();
       return new Promise<{
         source;
         name: string;
@@ -87,7 +94,7 @@ export class FacebookService {
             const format = metadata.format;
             resolve({
               source,
-              name: ogTitle?.substring(0, 200) || 'Video Facebook',
+              name: 'Video Facebook',
               mimeType: format.format_name,
               durationInSeconds: format.duration,
               frameSize: {
