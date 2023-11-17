@@ -6,15 +6,16 @@ const TRANSPORT_SERVICE = {
       name: 'API_SERVICE',
       transport: Transport.NATS,
       options: {
-        url: process.env.API_NATS_URL || 'nats://localhost:4222',
+        // url: process.env.API_NATS_URL || 'nats://localhost:4222',
+        servers: [process.env.NATS_URL],
       },
     },
     redis: {
       name: 'API_SERVICE',
       transport: Transport.REDIS,
       options: {
-        host: process.env.API_REDIS_HOST || 'localhost',
-        port: process.env.API_REDIS_PORT || 6379,
+        host: process.env.REDIS_HOST || 'localhost',
+        port: process.env.REDIS_PORT || 6379,
       },
     },
   },
@@ -23,15 +24,16 @@ const TRANSPORT_SERVICE = {
       name: 'TRANSCODE_SERVICE',
       transport: Transport.NATS,
       options: {
-        url: process.env.TRANSCODE_NATS_URL || 'nats://localhost:4222',
+        // url: process.env.TRANSCODE_NATS_URL || 'nats://localhost:4222',
+        servers: [process.env.NATS_URL],
       },
     },
     redis: {
       name: 'TRANSCODE_SERVICE',
       transport: Transport.REDIS,
       options: {
-        host: process.env.TRANSCODE_REDIS_HOST || 'localhost',
-        port: process.env.TRANSCODE_REDIS_PORT || 6379,
+        host: process.env.REDIS_HOST || 'localhost',
+        port: process.env.REDIS_PORT || 6379,
       },
     },
   },
