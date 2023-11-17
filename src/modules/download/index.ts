@@ -24,8 +24,8 @@ import { FfmpegService } from 'utils/ffmpeg.service';
     }),
     BullModule.registerQueue({ name: 'download_video' }),
     ClientsModule.register([
-      TRANSPORT_SERVICE['API_SERVICE'].redis,
-      TRANSPORT_SERVICE['TRANSCODE_SERVICE'].redis,
+      TRANSPORT_SERVICE['API_SERVICE'].nats,
+      TRANSPORT_SERVICE['TRANSCODE_SERVICE'].nats,
     ] as ClientsModuleOptions),
   ],
   controllers: [DownloadController],
