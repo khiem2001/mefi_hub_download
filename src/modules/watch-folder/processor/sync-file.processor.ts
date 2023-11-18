@@ -50,6 +50,28 @@ export class SyncFileProcessor {
         `${process.cwd()}/storage/${result}`,
       );
 
+    // TODO: get template transcode
+    const template = await this._APIService
+      .send('GET_TRANSCODE_TEMPLATE', {
+        id: templateId,
+      })
+      .pipe(timeout(15000))
+      .toPromise()
+      .then(async (result) => {
+        const { error, message, data } = result;
+        if (error) {
+          Logger.debug(`Get media template with error : ${message}`);
+          return;
+        }
+        return data;
+      })
+      .catch((error) => {
+        Logger.debug(`Get media template with error : ${error.message}`);
+        return;
+      });
+
+    const { isDRM } = template;
+
     // TODO: Create media
     const media = await this._APIService
       .send('CREATE_MEDIA', {
@@ -63,6 +85,7 @@ export class SyncFileProcessor {
         userId,
         description: filename,
         status: MediaStatus.UPLOADED,
+        hasDRM: isDRM,
       })
       .pipe(timeout(15000))
       .toPromise()
@@ -80,26 +103,6 @@ export class SyncFileProcessor {
       });
 
     if (this._validatorService.canTranscode(mimeType)) {
-      // TODO: get template transcode
-      const template = await this._APIService
-        .send('GET_TRANSCODE_TEMPLATE', {
-          id: templateId,
-        })
-        .pipe(timeout(15000))
-        .toPromise()
-        .then(async (result) => {
-          const { error, message, data } = result;
-          if (error) {
-            Logger.debug(`Get media template with error : ${message}`);
-            return;
-          }
-          return data;
-        })
-        .catch((error) => {
-          Logger.debug(`Get media template with error : ${error.message}`);
-          return;
-        });
-
       // TODO: check if not have template or not have preset template
       if (!template || template.presets.length === 0) {
         return;

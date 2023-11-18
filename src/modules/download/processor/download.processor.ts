@@ -36,7 +36,7 @@ export class DownloadProcessor {
   })
   @OnQueueActive()
   async onActive(job: Job) {
-    const { url, organizationId, userId } = job.data;
+    const { url, organizationId, userId, templateId } = job.data;
     const { type } = await GetInfoFromUrl(url);
 
     const storageDir = `storage/${organizationId}`;
@@ -64,7 +64,26 @@ export class DownloadProcessor {
         break;
     }
     const { name, durationInSeconds, frameSize } = fileMetadata;
+    const template = await this._APIService
+      .send('GET_TRANSCODE_TEMPLATE', {
+        id: templateId,
+      })
+      .pipe(timeout(15000))
+      .toPromise()
+      .then(async (result) => {
+        const { error, message, data } = result;
+        if (error) {
+          Logger.debug(`Get media template with error : ${message}`);
+          return;
+        }
+        return data;
+      })
+      .catch((error) => {
+        Logger.debug(`Get media template with error : ${error.message}`);
+        return;
+      });
 
+    const { isDRM } = template;
     return await this._APIService
       .send('CREATE_MEDIA', {
         mimeType: 'video/mp4',
@@ -77,6 +96,7 @@ export class DownloadProcessor {
         frameSize,
         source: url,
         status: MediaStatus.UPLOADING,
+        hasDRM: isDRM,
       })
       .pipe(timeout(15000))
       .toPromise()
