@@ -6,6 +6,8 @@ import { existsSync, mkdirSync } from 'fs';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuid } from 'uuid';
 import { checkUsedFileName, getMimeByFileName } from 'helpers/file';
+import * as path from 'path';
+import { promisify } from 'util';
 
 @Injectable()
 export class WatchFolderService {
@@ -45,6 +47,42 @@ export class WatchFolderService {
       };
     } finally {
       await sftp.end();
+    }
+  }
+
+  async readFolder(filePath?: string, filterName?: string): Promise<any[]> {
+    const readdirAsync = promisify(fs.readdir);
+    const statAsync = promisify(fs.stat);
+
+    const currentPath =
+      filePath !== undefined
+        ? `${this._watchFolder}/${filePath}`
+        : this._watchFolder;
+
+    try {
+      const files = await readdirAsync(currentPath);
+
+      return await Promise.all(
+        files.map(async (file) => {
+          const filePath = path.join(currentPath, file);
+          const stats = await statAsync(filePath);
+
+          console.log('stats', stats);
+
+          return {
+            name: file,
+            size: stats.size,
+            isDirectory: stats.isDirectory(),
+            mime: getMimeByFileName(file),
+            birthtime: stats.birthtimeMs,
+            modifiedDate: stats.mtimeMs,
+            requestPath: filePath,
+          };
+        }),
+      );
+    } catch (error) {
+      console.error('Error reading folder:', error);
+      throw error;
     }
   }
 

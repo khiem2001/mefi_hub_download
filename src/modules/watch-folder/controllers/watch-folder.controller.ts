@@ -46,7 +46,8 @@ export class WatchFolderController {
     @Query('folder') folder: string,
     @Query('filterName') filterName: string,
   ) {
-    return await this._watchService.listDirectory(folder, filterName);
+    //return await this._watchService.listDirectory(folder, filterName);
+    return await this._watchService.readFolder(folder, filterName);
   }
 
   @Post('sync')
