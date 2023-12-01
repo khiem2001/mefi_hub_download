@@ -66,9 +66,6 @@ export class WatchFolderService {
         files.map(async (file) => {
           const filePath = path.join(currentPath, file);
           const stats = await statAsync(filePath);
-
-          console.log('stats', stats);
-
           return {
             name: file,
             size: stats.size,
@@ -84,6 +81,30 @@ export class WatchFolderService {
       console.error('Error reading folder:', error);
       throw error;
     }
+  }
+
+  async saveFileToFolder({ srcPath, organizationId }): Promise<string> {
+    const storageDir = `${process.cwd()}/storage/${organizationId}`;
+    if (!existsSync(storageDir)) {
+      mkdirSync(storageDir, { recursive: true });
+    }
+    const readStream = fs.createReadStream(srcPath);
+    const fileExtension = srcPath.split('.').pop();
+    const prefix: string = uuid();
+    const fileName = `${prefix}.${fileExtension}`;
+    const writeStream = fs.createWriteStream(`${storageDir}/${fileName}`);
+
+    return new Promise((resolve, reject) => {
+      readStream.pipe(writeStream);
+
+      writeStream.on('finish', () => {
+        resolve(`${organizationId}/${fileName}`);
+      });
+
+      writeStream.on('error', (error) => {
+        reject(error);
+      });
+    });
   }
 
   /**

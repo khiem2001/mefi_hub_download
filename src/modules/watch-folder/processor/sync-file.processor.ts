@@ -34,7 +34,7 @@ export class SyncFileProcessor {
   @OnQueueActive()
   async syncToStorage(job: Job) {
     const { organizationId, path } = job.data;
-    return await this._watchService.syncFileToStorage({
+    return await this._watchService.saveFileToFolder({
       srcPath: path,
       organizationId,
     });
