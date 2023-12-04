@@ -1,4 +1,5 @@
 import { Transport } from '@nestjs/microservices';
+import 'dotenv/config';
 
 const TRANSPORT_SERVICE = {
   API_SERVICE: {
