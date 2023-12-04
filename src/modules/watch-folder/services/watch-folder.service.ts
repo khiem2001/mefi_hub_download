@@ -68,15 +68,20 @@ export class WatchFolderService {
         files.map(async (file) => {
           const filePath = path.join(currentPath, file);
           const stats = await statAsync(filePath);
-          contents.push({
-            name: file,
-            size: stats.size,
-            isDirectory: stats.isDirectory(),
-            mime: getMimeByFileName(file),
-            birthtime: stats.birthtimeMs,
-            modifiedDate: stats.mtimeMs,
-            requestPath: filePath,
-          });
+          if (
+            !filterName ||
+            (filterName && new RegExp(`.*${filterName}.*`, 'i').test(file))
+          ) {
+            contents.push({
+              name: file,
+              size: stats.size,
+              isDirectory: stats.isDirectory(),
+              mime: getMimeByFileName(file),
+              birthtime: stats.birthtimeMs,
+              modifiedDate: stats.mtimeMs,
+              requestPath: filePath,
+            });
+          }
         }),
       );
       return {
