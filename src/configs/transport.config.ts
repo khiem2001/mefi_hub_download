@@ -1,6 +1,8 @@
 import { Transport } from '@nestjs/microservices';
 import 'dotenv/config';
 
+console.log('process.env.NATS_URL', process.env.NATS_URL);
+
 const TRANSPORT_SERVICE = {
   API_SERVICE: {
     nats: {
