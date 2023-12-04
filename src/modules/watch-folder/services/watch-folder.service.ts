@@ -6,6 +6,8 @@ import { existsSync, mkdirSync } from 'fs';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuid } from 'uuid';
 import { checkUsedFileName, getMimeByFileName } from 'helpers/file';
+import * as path from 'path';
+import { promisify } from 'util';
 
 @Injectable()
 export class WatchFolderService {
@@ -46,6 +48,71 @@ export class WatchFolderService {
     } finally {
       await sftp.end();
     }
+  }
+
+  async readFolder(filePath?: string, filterName?: string) {
+    const readdirAsync = promisify(fs.readdir);
+    const statAsync = promisify(fs.stat);
+
+    const currentPath =
+      filePath !== undefined
+        ? `${this._watchFolder}/${filePath}`
+        : this._watchFolder;
+
+    try {
+      const files = await readdirAsync(currentPath);
+
+      const contents: any = [];
+
+      await Promise.all(
+        files.map(async (file) => {
+          const filePath = path.join(currentPath, file);
+          const stats = await statAsync(filePath);
+          contents.push({
+            name: file,
+            size: stats.size,
+            isDirectory: stats.isDirectory(),
+            mime: getMimeByFileName(file),
+            birthtime: stats.birthtimeMs,
+            modifiedDate: stats.mtimeMs,
+            requestPath: filePath,
+          });
+        }),
+      );
+      return {
+        success: true,
+        data: contents,
+      };
+    } catch (error) {
+      return {
+        success: true,
+        data: [],
+      };
+    }
+  }
+
+  async saveFileToFolder({ srcPath, organizationId }): Promise<string> {
+    const storageDir = `${process.cwd()}/storage/${organizationId}`;
+    if (!existsSync(storageDir)) {
+      mkdirSync(storageDir, { recursive: true });
+    }
+    const readStream = fs.createReadStream(srcPath);
+    const fileExtension = srcPath.split('.').pop();
+    const prefix: string = uuid();
+    const fileName = `${prefix}.${fileExtension}`;
+    const writeStream = fs.createWriteStream(`${storageDir}/${fileName}`);
+
+    return new Promise((resolve, reject) => {
+      readStream.pipe(writeStream);
+
+      writeStream.on('finish', () => {
+        resolve(`${organizationId}/${fileName}`);
+      });
+
+      writeStream.on('error', (error) => {
+        reject(error);
+      });
+    });
   }
 
   /**
