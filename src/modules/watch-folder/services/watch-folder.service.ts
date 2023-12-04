@@ -50,7 +50,7 @@ export class WatchFolderService {
     }
   }
 
-  async readFolder(filePath?: string, filterName?: string): Promise<any[]> {
+  async readFolder(filePath?: string, filterName?: string) {
     const readdirAsync = promisify(fs.readdir);
     const statAsync = promisify(fs.stat);
 
@@ -62,11 +62,13 @@ export class WatchFolderService {
     try {
       const files = await readdirAsync(currentPath);
 
-      return await Promise.all(
+      const contents: any = [];
+
+      await Promise.all(
         files.map(async (file) => {
           const filePath = path.join(currentPath, file);
           const stats = await statAsync(filePath);
-          return {
+          contents.push({
             name: file,
             size: stats.size,
             isDirectory: stats.isDirectory(),
@@ -74,12 +76,18 @@ export class WatchFolderService {
             birthtime: stats.birthtimeMs,
             modifiedDate: stats.mtimeMs,
             requestPath: filePath,
-          };
+          });
         }),
       );
+      return {
+        success: true,
+        data: contents,
+      };
     } catch (error) {
-      console.error('Error reading folder:', error);
-      throw error;
+      return {
+        success: true,
+        data: [],
+      };
     }
   }
 
