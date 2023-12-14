@@ -1,26 +1,22 @@
 import {
-  InjectQueue,
   OnQueueActive,
   OnQueueCompleted,
   Process,
-  Processor,
+  Processor
 } from '@nestjs/bull';
-import { Job, Queue } from 'bull';
-import { WatchFolderService } from 'modules/watch-folder/services';
 import { Inject, Logger } from '@nestjs/common';
-import { MediaStatus } from 'shared/enum/file';
-import { ValidatorService } from 'utils/validator.service';
-import { FfmpegService } from 'utils/ffmpeg.service';
 import { ClientProxy } from '@nestjs/microservices';
-import { v4 as uuid } from 'uuid';
+import { Job } from 'bull';
 import { writeFileName } from 'helpers/file';
-
+import { WatchFolderService } from 'modules/watch-folder/services';
+import { basename, extname } from 'path';
+import { MediaStatus } from 'shared/enum/file';
+import { FfmpegService } from 'utils/ffmpeg.service';
+import { v4 as uuid } from 'uuid';
 @Processor('sync')
 export class SyncFileProcessor {
   constructor(
-    @InjectQueue('sync') private readonly _syncQueue: Queue,
     private readonly _watchService: WatchFolderService,
-    private readonly _validatorService: ValidatorService,
     private readonly _ffmpegService: FfmpegService,
     @Inject('API_SERVICE') private readonly _APIService: ClientProxy,
     @Inject('TRANSCODE_SERVICE')
@@ -33,34 +29,39 @@ export class SyncFileProcessor {
   })
   @OnQueueActive()
   async syncToStorage(job: Job) {
-    const { organizationId, path } = job.data;
-    return await this._watchService.saveFileToFolder({
-      srcPath: path,
+    const { organizationId, path: inputPath } = job.data;
+    const originalName = basename(inputPath, extname(inputPath));
+   
+    const response = await this._watchService.saveFileToFolder({
+      srcPath: inputPath,
       organizationId,
     });
+
+    return {response, originalName}
   }
 
   @OnQueueCompleted()
   async onSyncComplete(job: Job, result: any) {
     const { templateId, organizationId, userId, path } = job.data;
+    const {response, originalName} = result
 
-    const { filenameWithoutExtension, filename, mimeType, fileSizeInBytes } =
+    const { filename, mimeType, fileSizeInBytes } =
       await this._ffmpegService.getFileInfo(
-        `${process.cwd()}/storage/${result}`,
+        `${process.cwd()}/storage/${response}`,
       );
 
     // TODO: Create media
     await this._APIService
       .send('CREATE_MEDIA', {
-        path: result,
+        path: response,
         mimeType,
-        name: filenameWithoutExtension,
+        name: originalName,
         fileName: filename,
         contentId: uuid(),
         organizationId,
         fileSize: fileSizeInBytes,
         userId,
-        description: filename,
+        description: originalName,
         status: MediaStatus.UPLOADED,
         templateId,
       })
