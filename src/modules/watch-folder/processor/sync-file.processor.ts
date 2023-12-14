@@ -101,6 +101,6 @@ export class SyncFileProcessor {
         return;
       });
 
-    return writeFileName(path);
+    return writeFileName(path, organizationId);
   }
 }

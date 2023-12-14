@@ -20,10 +20,19 @@ export const isVideoFile = (mime: string) => {
   return mime.startsWith("video/");
 }
 
-export const writeFileName = (name: string) => {
+export const writeFileName = (name: string, organizationId: string) => {
   try {
+
+    // Get the current date
+    const currentDate = new Date();
+    // Get year, month, and day
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1; // Months are zero-indexed, so we add 1
+    const day = currentDate.getDate();
+    const formattedDate = `${year}_${month}_${day}`;
+
     //create file and write file
-    let fileName = `src/helpers/fileNameDownload.txt`
+    let fileName = `storage/${organizationId}/file_used_${formattedDate}.txt`
     if (fs.existsSync(fileName)) {
       // If the file already exists, append data to it on a new line
       fs.appendFileSync(fileName, '\n' + name, 'utf-8');
