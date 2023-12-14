@@ -50,7 +50,7 @@ export class SyncFileProcessor {
       );
 
     // TODO: Create media
-    const media = await this._APIService
+    await this._APIService
       .send('CREATE_MEDIA', {
         path: result,
         mimeType,
@@ -67,18 +67,29 @@ export class SyncFileProcessor {
       .toPromise()
       .then(async (result) => {
         // TODO call to generate thumbnail
-        await this._APIService
-          .send('GENERATE_THUMBNAIL', {
-            mediaId: result._id,
+        const media = await this._APIService
+          .send('GET_MEDIA', {
+            mediaId: result._id.toString(),
           })
           .toPromise()
           .catch((error) => {
             return;
           });
+
+        // TODO call to generate thumbnail
+        await this._transcodeService
+          .send('GENERATE_THUMBNAIL', {
+            media,
+          })
+          .toPromise()
+          .catch((error) => {
+            return;
+          });
+
         // TODO call to transcode
-        await this._APIService
+        await this._transcodeService
           .send('START_TRANSCODE_FILE', {
-            mediaId: result._id,
+            media,
           })
           .toPromise()
           .catch((error) => {
