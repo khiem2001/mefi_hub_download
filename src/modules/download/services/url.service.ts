@@ -1,12 +1,12 @@
-import * as fs from 'fs';
+import fs, { createWriteStream, existsSync, mkdirSync } from 'fs';
 import axios from 'axios';
-import { Inject, Injectable } from '@nestjs/common';
-import { v4 as uuid } from 'uuid';
-import * as pathToFfmpeg from 'ffmpeg-static';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import pathToFfmpeg from 'ffmpeg-static';
 import * as pathToFfprobe from 'ffprobe-static';
 import * as Ffmpeg from 'fluent-ffmpeg';
 import { PUB_SUB } from 'modules/subscription';
 import { RedisPubSub } from 'graphql-redis-subscriptions';
+import * as path from 'path';
 
 @Injectable()
 export class UrlService {
@@ -19,92 +19,59 @@ export class UrlService {
   }
 
   /**
-   * Get video metadata from link MP4
-   * @param videoURL
-   */
-  async getRemoteMP4Metadata(videoURL: string) {
-    this._ffmpeg = Ffmpeg();
-
-    return new Promise<{
-      name: string;
-      durationInSeconds: number;
-      frameSize: {
-        width: number;
-        height: number;
-      };
-      mimeType: string;
-    }>((resolve, reject) => {
-      this._ffmpeg.input(videoURL).ffprobe((err, metadata) => {
-        if (err) {
-          reject(err);
-        } else {
-          const format = metadata.format;
-          resolve({
-            name: videoURL.split('/').pop(),
-            mimeType: format.format_name,
-            durationInSeconds: format.duration,
-            frameSize: {
-              width: metadata.streams[1].width,
-              height: metadata.streams[1].height,
-            },
-          });
-        }
-      });
-    });
-  }
-
-  /**
-   * Download video
-   * @param media
+   *
+   * @param url
+   * @param organizationId
    * @param progressCallback
    */
   async downloadVideo(
-    media: any,
+    { url, organizationId },
     progressCallback?: (process: number) => void,
   ) {
-    const { source, organizationId } = media;
     const storageDir = `storage/${organizationId}`;
-    const prefix: string = uuid();
-
-    const fileName = `${prefix}.mp4`;
-
-    const response = await axios({
-      url: source,
-      method: 'GET',
-      responseType: 'stream',
-      onDownloadProgress: async (progressEvent) => {
-        // Implement your progress tracking logic here
-        const percent = Math.round(
-          (progressEvent.loaded / progressEvent.total) * 100,
-        );
-        progressCallback && progressCallback(percent);
-        // TODO: Subscription "MEDIA DOWNLOAD PROCESS"
-        await this._pubSub.publish('DOWNLOAD_PROGRESS', {
-          data: {
-            media,
-            progress: `${Math.abs(percent)}`,
+    if (!existsSync(storageDir)) {
+      mkdirSync(storageDir, { recursive: true });
+    }
+    const fileName = path.basename(url);
+    const destinationPath = `${storageDir}/${fileName}`;
+    return new Promise(async (resolve, reject) => {
+      try {
+        const response = await axios.get(url, {
+          responseType: 'stream',
+          onDownloadProgress: async (progressEvent) => {
+            // Implement progress tracking logic
+            const percent = Math.round(
+              (progressEvent.loaded / progressEvent.total) * 100,
+            );
+            progressCallback && progressCallback(percent);
+            Logger.log(
+              `Downloading file ${fileName} ...${Math.abs(percent)} % done.`,
+              UrlService.name,
+            );
+            // TODO: Subscription "MEDIA DOWNLOAD PROCESS"
+            // await this._pubSub.publish('DOWNLOAD_PROGRESS', {
+            //   data: {
+            //     media,
+            //     progress: `${Math.abs(percent)}`,
+            //   },
+            // });
           },
         });
-      },
-    });
-
-    const destinationPath = `${storageDir}/${fileName}`;
-
-    const fileStream = fs.createWriteStream(destinationPath);
-
-    return new Promise<{ path: string; media: any }>((resolve, reject) => {
-      response.data.pipe(fileStream);
-
-      fileStream.on('finish', () => {
-        resolve({
-          path: `${destinationPath.replace(/^storage\//, '')}`,
-          media: media,
+        // Pipe the response stream to the file stream
+        const fileStream = createWriteStream(destinationPath);
+        response.data.pipe(fileStream);
+        fileStream.on('finish', () => {
+          fileStream.close();
+          resolve({ filePath: `${organizationId}/${fileName}` });
         });
-      });
-
-      fileStream.on('error', (err) => {
-        reject(err);
-      });
+        // Handle errors during the download
+        fileStream.on('error', (error) => {
+          fs.unlinkSync(destinationPath); // Delete the file in case of an error
+          reject(error);
+        });
+      } catch (error) {
+        reject(error);
+      }
     });
   }
 }
