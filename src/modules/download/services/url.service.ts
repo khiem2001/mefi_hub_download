@@ -7,6 +7,7 @@ import * as Ffmpeg from 'fluent-ffmpeg';
 import { PUB_SUB } from 'modules/subscription';
 import { RedisPubSub } from 'graphql-redis-subscriptions';
 import * as path from 'path';
+import { v4 as uuid } from 'uuid';
 
 @Injectable()
 export class UrlService {
@@ -32,7 +33,18 @@ export class UrlService {
     if (!existsSync(storageDir)) {
       mkdirSync(storageDir, { recursive: true });
     }
-    const fileName = path.basename(url);
+    let fileName = path.basename(url);
+
+    //custom filename if filename is invalid
+    if (!fileName.endsWith('.mp4')) {
+      const index = fileName.indexOf('.mp4');
+      if (index !== -1) {
+        fileName = fileName.substring(0, index + 4);
+      } else {
+        fileName = uuid() + '.mp4';
+      }
+    }
+
     const destinationPath = `${storageDir}/${fileName}`;
     return new Promise(async (resolve, reject) => {
       try {
