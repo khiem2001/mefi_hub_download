@@ -1,30 +1,77 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { cookies } from 'configs/facebook.config';
-import fs, { createWriteStream, existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 const puppeteer = require('puppeteer');
-import axios from 'axios';
-import pathToFfmpeg from 'ffmpeg-static';
-import * as pathToFfprobe from 'ffprobe-static';
 import * as Ffmpeg from 'fluent-ffmpeg';
 import { PUB_SUB } from 'modules/subscription';
 import { RedisPubSub } from 'graphql-redis-subscriptions';
 import * as path from 'path';
+import { UrlService } from './url.service';
+import { ConfigService } from '@nestjs/config';
+import { v4 as uuid } from 'uuid';
 
 @Injectable()
 export class FacebookService {
   private _ffmpeg: Ffmpeg.FfmpegCommand;
 
-  constructor(@Inject(PUB_SUB) private _pubSub: RedisPubSub) {
+  constructor(
+    @Inject(PUB_SUB) private _pubSub: RedisPubSub,
+    private readonly _urlService: UrlService,
+    private readonly _configService: ConfigService,
+  ) {
     this._ffmpeg = Ffmpeg();
-    this._ffmpeg.setFfmpegPath(pathToFfmpeg);
-    this._ffmpeg.setFfprobePath(pathToFfprobe.path);
+    this._ffmpeg.setFfmpegPath(this._configService.get('FFMPEG_BIN_PATH'));
+    this._ffmpeg.setFfprobePath(this._configService.get('FFPROBE_BIN_PATH'));
   }
 
-  async getUrlMp4(url: string) {
+  async downloadVideo({ url, organizationId }) {
+    const { sourceVideo, sourceAudio, name, videoId } = await this.getInfo(url);
+
+    const storageDir = `storage/${organizationId}`;
+    if (!existsSync(storageDir)) {
+      mkdirSync(storageDir, { recursive: true });
+    }
+
+    const fileNameAudio = path.basename(sourceAudio);
+
+    const indexAudio = fileNameAudio.indexOf('.mp4');
+    const fileNameAudioCustom = fileNameAudio.substring(0, indexAudio) + '.mp3';
+
+    const { filePath: filePathVideo }: any =
+      await this._urlService.downloadVideo({
+        url: sourceAudio,
+        organizationId,
+        fileNameCustom: fileNameAudioCustom,
+      });
+
+    const fileNameVideo = path.basename(sourceVideo);
+    const indexVideo = fileNameVideo.indexOf('.mp4');
+    const fileNameVideoCustom = fileNameVideo.substring(0, indexVideo + 4);
+
+    const { filePath: filePathAudio }: any =
+      await this._urlService.downloadVideo({
+        url: sourceVideo,
+        organizationId,
+        fileNameCustom: fileNameVideoCustom,
+      });
+
+    const filePath = await this.mergeVideoAndAudio(
+      filePathVideo,
+      filePathAudio,
+      `${organizationId}/${videoId || uuid()}.mp4`,
+    );
+
+    return {
+      filePath,
+      name,
+    };
+  }
+
+  async getInfo(url: string) {
     try {
       let videoInfo: any = null;
+      let audioInfo = null;
       let highestResolution = 0;
-      let source = null;
       let pageContent = null;
 
       const browser = await puppeteer.launch({
@@ -64,21 +111,50 @@ export class FacebookService {
         if (videos[0]?.representations?.length > 0) {
           //Get video info highestQuality
           for (const video of videos[0]?.representations) {
-            const resolution = video.width * video.height;
-            if (resolution > highestResolution) {
-              highestResolution = resolution;
-              videoInfo = video;
+            if (video.mime_type === 'video/mp4') {
+              const resolution = video.width * video.height;
+              if (resolution > highestResolution) {
+                highestResolution = resolution;
+                videoInfo = video;
+              }
+            }
+            if (video.mime_type === 'audio/mp4') {
+              audioInfo = video;
             }
           }
-          //Get video url mp4
-          source = videoInfo?.base_url;
+          //Get url
+          const sourceVideo = videoInfo?.base_url;
+          const sourceAudio = audioInfo?.base_url;
+
+          return {
+            sourceVideo,
+            sourceAudio,
+            name,
+            videoId: videos[0]?.video_id,
+          };
         }
       }
-
       await browser.close();
-      return { source, name };
+      throw new Error('Facebook url invalid!');
     } catch (error) {
       throw new Error('Facebook url invalid!');
     }
+  }
+
+  async mergeVideoAndAudio(
+    videoPath: string,
+    audioPath: string,
+    outputPath: string,
+  ) {
+    return new Promise((resolve, reject) => {
+      this._ffmpeg
+        .input(`storage/${videoPath}`)
+        .input(`storage/${audioPath}`)
+        .videoCodec('copy')
+        .audioCodec('aac')
+        .save(`storage/${outputPath}`)
+        .on('end', () => resolve(outputPath))
+        .on('error', (err) => reject(err));
+    });
   }
 }

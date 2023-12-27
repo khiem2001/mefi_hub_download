@@ -39,27 +39,13 @@ export class DownloadProcessor {
     const type = await detectUrl(url);
     switch (type) {
       case SocialSource.FACEBOOK:
-        const { source, name } = await this._facebookService.getUrlMp4(url);
-        const { filePath }: any = await this._urlService.downloadVideo({
-          url: source,
-          organizationId,
-        });
-
-        return {
-          filePath,
-          name,
-        };
+        return this._facebookService.downloadVideo({ url, organizationId });
 
       case SocialSource.YOUTUBE:
-        const res = await this._youtubeService.downloadVideo({
+        return this._youtubeService.downloadVideo({
           url,
           organizationId,
         });
-
-        return {
-          filePath: res.filePath,
-          name: res.name,
-        };
 
       default:
         return this._urlService.downloadVideo({ url, organizationId });
