@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import * as ytdl from 'ytdl-core';
 import { v4 as uuid } from 'uuid';
-import * as fs from 'fs';
 import { PUB_SUB } from 'modules/subscription';
 import { RedisPubSub } from 'graphql-redis-subscriptions';
+import fs, { createWriteStream, existsSync, mkdirSync } from 'fs';
 
 @Injectable()
 export class YoutubeService {
@@ -15,50 +15,54 @@ export class YoutubeService {
    * @param progressCallback
    */
   async downloadVideo(
-    media: any,
+    { url, organizationId },
     progressCallback?: (percent: number) => void,
   ) {
-    const { source, organizationId } = media;
     const storageDir = `storage/${organizationId}`;
-    const prefix: string = uuid();
+    if (!existsSync(storageDir)) {
+      mkdirSync(storageDir, { recursive: true });
+    }
 
-    const fileName = `${prefix}.mp4`;
-
-    const videoStream = ytdl(source, {
-      quality: 'highest',
+    const info = await ytdl.getInfo(url);
+    const videoStream = ytdl(url, {
+      quality: 'highestvideo',
       filter: 'audioandvideo',
     });
+    const fileName = `${info?.videoDetails?.videoId}.mp4`;
+    const name = info?.videoDetails?.title || 'Video Youtube';
 
     const destinationPath = `${storageDir}/${fileName}`;
 
-    const fileStream = fs.createWriteStream(destinationPath);
+    const fileStream = createWriteStream(destinationPath);
 
     videoStream.on('progress', async (chunkLength, downloaded, total) => {
       const percent = (downloaded / total) * 100;
       progressCallback && progressCallback(percent);
       // TODO: Subscription "MEDIA DOWNLOAD PROCESS"
-      await this._pubSub.publish('DOWNLOAD_PROGRESS', {
-        data: {
-          media,
-          progress: `${Math.abs(percent)}`,
-        },
-      });
+      // await this._pubSub.publish('DOWNLOAD_PROGRESS', {
+      //   data: {
+      //     media,
+      //     progress: `${Math.abs(percent)}`,
+      //   },
+      // });
     });
 
-    return new Promise<{ path: string; media: any }>((resolve, reject) => {
-      videoStream.pipe(fileStream);
+    return new Promise<{ filePath: string; name: string }>(
+      (resolve, reject) => {
+        videoStream.pipe(fileStream);
 
-      fileStream.on('finish', () => {
-        resolve({
-          path: `${destinationPath.replace(/^storage\//, '')}`,
-          media: media,
+        fileStream.on('finish', () => {
+          resolve({
+            filePath: `${organizationId}/${fileName}`,
+            name,
+          });
         });
-      });
 
-      fileStream.on('error', (err) => {
-        reject(err);
-      });
-    });
+        fileStream.on('error', (err) => {
+          reject(err);
+        });
+      },
+    );
   }
 
   /**

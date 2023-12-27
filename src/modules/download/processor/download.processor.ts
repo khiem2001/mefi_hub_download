@@ -51,10 +51,15 @@ export class DownloadProcessor {
         };
 
       case SocialSource.YOUTUBE:
-      // return this._youtubeService.downloadVideo({
-      //   url,
-      //   organizationId,
-      // });
+        const res = await this._youtubeService.downloadVideo({
+          url,
+          organizationId,
+        });
+
+        return {
+          filePath: res.filePath,
+          name: res.name,
+        };
 
       default:
         return this._urlService.downloadVideo({ url, organizationId });
