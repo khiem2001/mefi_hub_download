@@ -8,6 +8,12 @@ import { PUB_SUB } from 'modules/subscription';
 import { RedisPubSub } from 'graphql-redis-subscriptions';
 import * as path from 'path';
 
+export interface DownloadInterface {
+  url: string;
+  organizationId: string;
+  fileNameCustom?: string;
+}
+
 @Injectable()
 export class UrlService {
   private _ffmpeg: Ffmpeg.FfmpegCommand;
@@ -25,14 +31,14 @@ export class UrlService {
    * @param progressCallback
    */
   async downloadVideo(
-    { url, organizationId },
+    { url, organizationId, fileNameCustom }: DownloadInterface,
     progressCallback?: (process: number) => void,
   ) {
     const storageDir = `storage/${organizationId}`;
     if (!existsSync(storageDir)) {
       mkdirSync(storageDir, { recursive: true });
     }
-    const fileName = path.basename(url);
+    const fileName = fileNameCustom || path.basename(url);
     const destinationPath = `${storageDir}/${fileName}`;
     return new Promise(async (resolve, reject) => {
       try {

@@ -8,11 +8,12 @@ import { Job } from 'bull';
 import { Inject, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { FacebookService, UrlService, YoutubeService } from '../services';
-import { GetInfoFromUrl } from 'helpers/url';
+import { detectUrl } from 'helpers/url';
 import { FfmpegService } from 'utils/ffmpeg.service';
 import { v4 as uuid } from 'uuid';
 import { MediaStatus } from 'shared/enum/file';
 import { basename } from 'path';
+import { SocialSource } from 'shared/enum';
 
 @Processor('download_video')
 export class DownloadProcessor {
@@ -35,32 +36,26 @@ export class DownloadProcessor {
   @OnQueueActive()
   async onActive(job: Job) {
     const { url, organizationId } = job.data;
-    const { type } = await GetInfoFromUrl(url);
-
+    const type = await detectUrl(url);
     switch (type) {
-      // case SocialSource.FACEBOOK:
-      //   return await this._youtubeService.downloadVideo(
-      //     media,
-      //     (process: number) => {
-      //       console.log('process', process);
-      //     },
-      //   );
-      // case SocialSource.YOUTUBE:
-      //   return await this._youtubeService.downloadVideo(
-      //     media,
-      //     (process: number) => {
-      //       console.log('process', process);
-      //     },
-      //   );
+      case SocialSource.FACEBOOK:
+        return this._facebookService.downloadVideo({ url, organizationId });
+
+      case SocialSource.YOUTUBE:
+        return this._youtubeService.downloadVideo({
+          url,
+          organizationId,
+        });
+
       default:
-        return await this._urlService.downloadVideo({ url, organizationId });
+        return this._urlService.downloadVideo({ url, organizationId });
     }
   }
 
   @OnQueueCompleted()
   async completed(job: Job, result: any) {
     const { organizationId, userId, templateId } = job.data;
-    const { filePath } = result;
+    const { filePath, name } = result;
     const { filename, mimeType, fileSizeInBytes } =
       await this._ffmpegService.getFileInfo(
         `${process.cwd()}/storage/${filePath}`,
@@ -71,7 +66,7 @@ export class DownloadProcessor {
       .send('CREATE_MEDIA', {
         path: filePath,
         mimeType,
-        name: originalName,
+        name: name || originalName,
         fileName: filename,
         contentId: uuid(),
         organizationId,
